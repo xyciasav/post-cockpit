@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
   <title>Post Cockpit</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="{{ request.script_root }}/static/style.css" />
 </head>
 <body>
   <header class="wrap">
@@ -33,6 +34,24 @@
 
     <!-- Issue Builder -->
     <section id="issue" class="panel active">
+          <div class="card">
+    <div class="row between">
+      <div>
+        <h2>Quick Start</h2>
+        <div class="muted small">Fill the left side → generate → copy. This tool autosaves in your browser.</div>
+      </div>
+      <div id="statusPills" class="pills"></div>
+    </div>
+
+    <ol class="qs">
+      <li><b>Pick a Democracy Watch headline</b> (Democracy Watch tab → “Use this”).</li>
+      <li><b>Add 1–3 Calls to Action</b> (CTA section).</li>
+      <li><b>Add events</b> (Upcoming Schedule).</li>
+      <li><b>Generate Markdown</b> (button) → paste into Substack.</li>
+      <li><b>Generate Bluesky Pack</b> (Bluesky tab) → copy all.</li>
+    </ol>
+  </div>
+
       <div class="grid2">
         <div class="card">
           <div class="row between">
