@@ -1,11 +1,63 @@
+import os
 from flask import Flask, render_template, request, jsonify
-import requests
+import requests,os
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import feedparser
 
 app = Flask(__name__)
 
+
+OLLAMA_BASE  = os.environ.get("OLLAMA_BASE", "http://10.0.0.103:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:latest")
+
+@app.route("/api/ai/chat", methods=["POST"])
+def api_ai_chat():
+    data = request.get_json(force=True) or {}
+
+    messages = data.get("messages") or []
+    if not isinstance(messages, list) or not messages:
+        return jsonify({"error": "messages must be a non-empty list"}), 400
+
+    payload = {
+        "model": data.get("model") or OLLAMA_MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {
+            "temperature": float(data.get("temperature", 0.7)),
+            "top_p": float(data.get("top_p", 0.9)),
+            "num_predict": int(data.get("num_predict", 300)),
+        }
+    }
+
+    r = requests.post(f"{OLLAMA_BASE}/api/chat", json=payload, timeout=180)
+    r.raise_for_status()
+    return jsonify(r.json())
+
+
+@app.post("/api/ai/chat")
+def ai_chat():
+    data = request.get_json(force=True) or {}
+    messages = data.get("messages") or []
+    model = data.get("model") or OLLAMA_MODEL
+
+    r = requests.post(
+        f"{OLLAMA_BASE}/api/chat",
+        json={
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            # optional knobs:
+            "options": {
+                "temperature": data.get("temperature", 0.7),
+                "top_p": data.get("top_p", 0.9),
+                "num_predict": data.get("num_predict", 220)
+            }
+        },
+        timeout=180
+    )
+    r.raise_for_status()
+    return jsonify(r.json())
 
 # ----------------------------
 # Helpers
@@ -16,9 +68,9 @@ def _validate_http_url(url: str) -> None:
         raise ValueError("Only http/https URLs are allowed.")
 
 
-def _fetch_text(url: str, timeout=8, max_bytes=2_000_000) -> str:
+def _fetch_text(url: str, timeout=10, max_bytes=2_000_000) -> str:
     _validate_http_url(url)
-    headers = {"User-Agent": "PostCockpit/1.0 (+local drafting tool)"}
+    headers = {"User-Agent": "SocialCockpit/1.0 (+local drafting tool)"}
     with requests.get(url, headers=headers, timeout=timeout, stream=True) as r:
         r.raise_for_status()
         content = b""
@@ -86,17 +138,17 @@ def rss():
     limit = max(1, min(limit, 30))
 
     items = []
-    for feed in feeds[:20]:
+    for feed in feeds[:30]:
         try:
             url = feed.get("url") if isinstance(feed, dict) else str(feed)
             _validate_http_url(url)
             d = feedparser.parse(url)
-            feed_title = (d.feed.get("title") or url)[:120]
+            feed_title = (d.feed.get("title") or feed.get("name") or url)[:120]
             for e in (d.entries or [])[:limit]:
                 items.append(
                     {
                         "feed": feed_title,
-                        "title": (getattr(e, "title", "") or "")[:200],
+                        "title": (getattr(e, "title", "") or "")[:220],
                         "link": getattr(e, "link", "") or "",
                         "published": getattr(e, "published", "") or getattr(e, "updated", "") or "",
                     }
@@ -108,4 +160,5 @@ def rss():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5010, debug=True)
+    port = int(os.environ.get("PORT", "5010"))
+    app.run(host="0.0.0.0", port=port, debug=False)
