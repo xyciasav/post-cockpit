@@ -58,8 +58,52 @@ function loadJson(key, fallback) {
 function saveJson(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 function nowMs(){ return Date.now(); }
 
-function copyToClipboard(text){
-  navigator.clipboard.writeText(text || "");
+function toast(msg){
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.className = "toast show";
+  setTimeout(() => el.className = "toast", 1200);
+}
+
+async function copyToClipboard(text){
+  text = text || "";
+
+  // Preferred: modern clipboard (requires HTTPS or localhost)
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      toast("Copied!");
+      return true;
+    }
+  } catch (e) {
+    // fall through to fallback
+  }
+
+  // Fallback: works on HTTP in most browsers
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+
+    toast(ok ? "Copied!" : "Copy failed");
+    return ok;
+  } catch (e) {
+    toast("Copy failed");
+    return false;
+  }
 }
 
 function normalizeTags(tags){
