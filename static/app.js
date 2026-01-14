@@ -444,44 +444,125 @@ function pickOne(arr){
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function buildDraftText({platform, templateId, tone, context, tags, linkPolicy, linkOverride, index, total}){
+function buildDraftText({platform, templateId, tone, context, tags, linkPolicy, linkOverride, index, total, varIndex}){
   const max = settings.bluesky.maxChars || 300;
   const tagStr = hashtagString(tags);
+
+  // index is used for link policy; varIndex is used for variation choices
+  const i  = Number.isFinite(index) ? index : 0;
+  const vi = Number.isFinite(varIndex) ? varIndex : i;
 
   const title = context.title || context.base || "";
   const src = context.source ? ` (${context.source})` : "";
   const link = safeTrim(linkOverride || context.link || "");
 
-  const cta = pickOne(settings.boiler.ctas) || "Show up. Bring a friend.";
-  const closer = pickOne(settings.boiler.closers) || "The fight is up, not around us.";
+  // Deterministic variation across drafts (instead of random repeats)
+  const cta    = chooseVar(settings.boiler?.ctas || [], vi) || "Show up. Bring a friend.";
+  const closer = chooseVar(settings.boiler?.closers || [], vi) || "The fight is up, not around us.";
 
-  // tone modifiers (lightweight)
-  const toneLead = {
-    plain: "",
-    urgent: "This is happening now.\n",
-    angry: "I’m furious — and we’re not looking away.\n",
-    hopeful: "We can still win this.\n"
-  }[tone] || "";
+  // Tone lead lines (varies by draft)
+  const toneLeads = {
+    plain:  [""],
+    urgent: HOOKS,
+    angry:  [
+      "I’m furious — and we’re not looking away.",
+      "Enough. We’re paying attention.",
+      "This should alarm all of us.",
+      "We’re done pretending this is normal."
+    ],
+    hopeful: [
+      "We can still win this.",
+      "Hope is a verb. Let’s act.",
+      "We’re not powerless — we organize.",
+      "We’ve beat worse. Together."
+    ]
+  };
 
-  // template bodies
+  const lead = chooseVar(toneLeads[tone] || [""], vi);
+  const leadLine = lead ? `${lead}\n` : "";
+
+  const notes = safeTrim(context.notes);
+
+  // ---- template bodies ----
   let body = "";
+
   if (templateId === "headline_why"){
-    body = `${toneLead}${title}${src}\n\nWhy it matters: power without accountability becomes the norm.`;
+    const why = chooseVar(WHY_LINES, vi) || "Unchecked power becomes policy.";
+    const prompt = chooseVar(PROMPTS, vi) || "Read it. Share it.";
+
+    // include notes sometimes so drafts differ + you get local angle
+    const localLine = (notes && (vi % 3 === 0)) ? `\n\nLocal angle: ${notes}` : "";
+
+    body = `${leadLine}${title}${src}\n\nWhy it matters: ${why}\n\n${prompt}${localLine}`.trim();
+
   } else if (templateId === "cta_now"){
-    body = `${toneLead}${title}\n\n${cta}`;
+    const opener = chooseVar([
+      "Quick action:",
+      "If you can do one thing today:",
+      "Do something now:",
+      "Small step, real impact:"
+    ], vi);
+    body = `${leadLine}${title}${src}\n\n${opener} ${cta}`.trim();
+
   } else if (templateId === "myth_fact"){
-    body = `${toneLead}MYTH: “This is normal.”\nFACT: It’s a warning sign — and it escalates when we stay quiet.\n\n${cta}`;
+    const myth = chooseVar([
+      "“This is normal.”",
+      "“It can’t happen here.”",
+      "“It doesn’t affect me.”",
+      "“Someone else will handle it.”"
+    ], vi);
+
+    const fact = chooseVar([
+      "It escalates when we stay quiet.",
+      "It spreads when there’s no pushback.",
+      "Rights don’t protect themselves.",
+      "Complacency is the permission slip."
+    ], vi);
+
+    body = `${leadLine}MYTH: ${myth}\nFACT: ${fact}\n\n${cta}`.trim();
+
   } else if (templateId === "local_event"){
-    body = `${toneLead}Local action matters.\n\n${cta}\n\n${closer}`;
+    const opener = chooseVar([
+      "Local action matters.",
+      "This is how we build power.",
+      "Show up locally — it works.",
+      "Community is the leverage."
+    ], vi);
+
+    const detailLine = (notes && (vi % 2 === 0)) ? `\n\nNotes: ${notes}` : "";
+    body = `${leadLine}${opener}\n\n${cta}\n\n${closer}${detailLine}`.trim();
+
   } else if (templateId === "rally"){
-    body = `${toneLead}Democracy vs. authoritarianism.\n\nWe choose democracy.\n\n${cta}`;
+    const chant = chooseVar([
+      "Democracy vs. authoritarianism.",
+      "No kings. No fear. No silence.",
+      "Rights are won by showing up.",
+      "We protect each other."
+    ], vi);
+
+    body = `${leadLine}${chant}\n\nWe choose democracy.\n\n${cta}`.trim();
+
   } else if (templateId === "community_win"){
-    body = `${toneLead}Community is the antidote.\n\nWe showed up. We helped. We keep going.\n\n${closer}`;
+    const win = chooseVar([
+      "Community is the antidote.",
+      "Mutual aid is what democracy looks like.",
+      "We showed up — and it mattered.",
+      "This is how we take care of each other."
+    ], vi);
+
+    const ask = chooseVar([
+      "Send a photo or a short clip — we’ll share community highlights.",
+      "Got pics from this week? Drop them in the group / email them over.",
+      "If you were there, share one moment. It helps grow the movement."
+    ], vi);
+
+    body = `${leadLine}${win}\n\n${ask}\n\n${closer}`.trim();
+
   } else {
-    body = `${toneLead}${title}\n\n${cta}`;
+    body = `${leadLine}${title}\n\n${cta}`.trim();
   }
 
-  // platform-specific assembly
+  // ---- platform-specific assembly ----
   if (platform === "instagram"){
     const igCTA = safeTrim($("igCTA").value) || cta;
     const tagStyle = $("igTagStyle").value || "end";
@@ -496,19 +577,19 @@ function buildDraftText({platform, templateId, tone, context, tags, linkPolicy, 
     return `${base}\n\n${tagStr}`;
   }
 
-  // Bluesky
+  // ---- Bluesky ----
   let useLink = "";
   if (link && linkPolicy === "every") useLink = link;
-  if (link && linkPolicy === "some" && (index === 0 || index === total-1)) useLink = link;
+  if (link && linkPolicy === "some" && (i === 0 || i === total-1)) useLink = link;
 
   let text = body.trim();
   if (useLink) text += `\n\n${useLink}`;
   if (tagStr) text += `\n\n${tagStr}`;
 
-  // enforce 300 chars
   if (text.length > max) text = text.slice(0, max-1) + "…";
   return text;
 }
+
 
 function generateDrafts(){
   const platform = $("studioPlatform").value;
@@ -621,6 +702,22 @@ function saveStudioDraftsToLibrary(){
   saveJson(LS_DRAFTS, drafts);
   renderDraftLibrary();
   alert("Saved to Draft Library.");
+}
+
+async function aiGenerate(system, user){
+  const r = await fetch("/api/ai/chat", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user }
+      ]
+    })
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const data = await r.json();
+  return data?.message?.content || "";
 }
 
 // -------- Link scraper --------
