@@ -1,0 +1,10 @@
+services:
+  post-cockpit:
+    build: .
+    container_name: post-cockpit
+    environment:
+      PORT: "5010"
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "5010:5010"
+    restart: unless-stopped
