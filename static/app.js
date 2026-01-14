@@ -447,7 +447,7 @@ function renderScheduleList(){
       <div class="kv">
         <div>
           <label>Date (YYYY-MM-DD)</label>
-          <input class="sched" data-k="date" data-idx="${idx}" value="${escapeAttr(ev.date||"")}" />
+          <input type="date" class="sched" data-k="date" data-idx="${idx}" value="${escapeAttr(ev.date||"")}" />
         </div>
         <div>
           <label>Name</label>
@@ -514,10 +514,14 @@ function renderCtaList(){
           <label>Action verb</label>
           <input class="cta" data-k="action" data-idx="${idx}" value="${escapeAttr(cta.action||"")}" />
         </div>
-        <div>
-          <label>Deadline</label>
-          <input class="cta" data-k="deadline" data-idx="${idx}" value="${escapeAttr(cta.deadline||"")}" />
-        </div>
+<div>
+  <label>Deadline (date)</label>
+  <input type="date" class="cta" data-k="deadlineDate" data-idx="${idx}" value="${escapeAttr(cta.deadlineDate||"")}" />
+</div>
+<div>
+  <label>Deadline (text)</label>
+  <input class="cta" data-k="deadline" data-idx="${idx}" value="${escapeAttr(cta.deadline||"")}" placeholder="e.g., Tomorrow" />
+</div>
         <div style="flex:2 1 260px">
           <label>One sentence</label>
           <input class="cta" data-k="text" data-idx="${idx}" value="${escapeAttr(cta.text||"")}" />
@@ -547,7 +551,7 @@ function renderCtaList(){
   });
 
   $("addCtaBtn").onclick = () => {
-    cur.callToAction.push({ action:"", text:"", link:"", deadline:"" });
+    cur.callToAction.push({ action:"", text:"", link:"", deadline:"", deadlineDate:"" });
     persistIssues();
     renderCtaList();
   };
@@ -947,6 +951,173 @@ function wireAiPaste(){
     $("aiPaste").value = "";
   };
 }
+function buildSectionBlocks(issue, mode){
+  const social = issue.social || settings.social;
+  const dw = issue.democracyWatch || {};
+  const blocks = [];
+
+  const fmtDeadline = (cta) => {
+    if (cta.deadlineDate) return prettyDate(cta.deadlineDate);
+    if (cta.deadline) return cta.deadline; // existing text field (e.g., "Tomorrow")
+    return "";
+  };
+
+  if (mode === "substack") {
+    // Title + Opening
+    blocks.push({
+      key: "title_opening",
+      label: "Title + Opening",
+      text: [
+        (issue.title || "Title"),
+        "",
+        (issue.opening || "This is the opening statement.").trim()
+      ].join("\n")
+    });
+
+    // Important
+    blocks.push({
+      key: "important",
+      label: "⭐ What’s Important",
+      text: [
+        "⭐ What’s Important (Read First)",
+        "",
+        ...(issue.important?.length
+          ? issue.important.filter(x=>String(x||"").trim()).map((x,i)=>`${i+1}) ${String(x).trim()}`)
+          : ["(Add key points here.)"])
+      ].join("\n")
+    });
+
+    // Schedule
+    const schedLines = ["📅 Upcoming Schedule", ""];
+    if (issue.schedule?.length) {
+      issue.schedule.forEach(ev => {
+        const d = ev.date ? prettyDate(ev.date) : "Date TBD";
+        schedLines.push(`${d} — ${ev.name || "Event"}`);
+        if (ev.location) schedLines.push(`📍 ${ev.location}`);
+        if (ev.time)     schedLines.push(`🕔 ${ev.time}`);
+        if (ev.focus)    schedLines.push(`🎯 ${ev.focus}`);
+        if (ev.link)     schedLines.push(`👉 ${ev.link}`);
+        schedLines.push(""); // blank line between events
+      });
+    } else {
+      schedLines.push("(Add events here.)");
+    }
+    blocks.push({ key: "schedule", label: "📅 Upcoming Schedule", text: schedLines.join("\n").trim() });
+
+    // Democracy Watch
+    const dwLines = ["📰 Democracy Watch", ""];
+    if (dw.headline || dw.link) {
+      const src = dw.source ? ` (${dw.source})` : "";
+      dwLines.push(`${dw.headline || "Headline"}${src}`);
+      if (dw.link) dwLines.push(`👉 ${dw.link}`);
+      if (dw.summaryBullets?.length) {
+        dwLines.push("");
+        dw.summaryBullets.forEach(b => dwLines.push(`• ${b}`));
+      }
+      if (dw.imageNote) {
+        dwLines.push("");
+        dwLines.push(`(Image note: ${dw.imageNote})`);
+      }
+    } else {
+      dwLines.push("(Pick a headline in Democracy Watch tab.)");
+    }
+    blocks.push({ key: "dw", label: "📰 Democracy Watch", text: dwLines.join("\n") });
+
+    // Call to Action
+    const ctaLines = ["📢 Call to Action", ""];
+    if (issue.callToAction?.length) {
+      issue.callToAction.forEach(cta => {
+        const dead = fmtDeadline(cta);
+        const head = cta.action ? `${cta.action}:` : "Action:";
+        ctaLines.push(`• ${head} ${(cta.text || "").trim()}`.trim());
+        if (cta.link) ctaLines.push(`👉 ${cta.link}`);
+        if (dead) ctaLines.push(`Deadline: ${dead}`);
+        ctaLines.push("");
+      });
+    } else {
+      ctaLines.push("(Add 1–3 actions people can do today.)");
+    }
+    blocks.push({ key: "cta", label: "📢 Call to Action", text: ctaLines.join("\n").trim() });
+
+    // Community Corner
+    blocks.push({
+      key: "community",
+      label: "💬 Community Corner",
+      text: [
+        "💬 Community Corner",
+        "",
+        (issue.communityCorner || "(Add community highlight / photo notes here.)").trim(),
+        "",
+        "Send photos/clips/art/reflections to ragefordemocracy@gmail.com — we’ll highlight community submissions in the next issue."
+      ].join("\n")
+    });
+
+    // Social
+    blocks.push({
+      key: "social",
+      label: "📲 Stay Connected",
+      text: [
+        "📲 Stay Connected",
+        "",
+        `📸 Instagram → ${social.instagram || ""}`,
+        `😁 Facebook → ${social.facebook || ""}`,
+        `🔵 BlueSky → ${social.bluesky || ""}`,
+        `📹 TikTok → ${social.tiktok || ""}`,
+        social.discord ? `💬 Discord → ${social.discord}` : ""
+      ].filter(Boolean).join("\n")
+    });
+
+    return blocks;
+  }
+
+  // Markdown mode (kept for other uses)
+  blocks.push({
+    key: "markdown_full",
+    label: "Full Markdown",
+    text: buildMarkdown(issue)
+  });
+  return blocks;
+}
+
+function renderSectionOutputs(){
+  const mode = $("outputMode")?.value || "substack";
+  const blocks = buildSectionBlocks(getActiveIssue(), mode);
+
+  const wrap = $("sectionOutputs");
+  wrap.innerHTML = "";
+
+  blocks.forEach(b => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="row between">
+        <b>${escapeHtml(b.label)}</b>
+        <button class="copySectionBtn">Copy</button>
+      </div>
+      <textarea rows="8" class="sectionText"></textarea>
+    `;
+    const ta = div.querySelector(".sectionText");
+    ta.value = b.text;
+    div.querySelector(".copySectionBtn").onclick = () => copyToClipboard(ta.value);
+    wrap.appendChild(div);
+  });
+
+  // Store for Copy All
+  window.__lastSectionBlocks = blocks;
+}
+
+function wireSectionOutputs(){
+  $("genSectionsBtn").onclick = renderSectionOutputs;
+
+  $("copyAllSectionsBtn").onclick = () => {
+    const blocks = window.__lastSectionBlocks || buildSectionBlocks(getActiveIssue(), $("outputMode").value);
+    const joined = blocks.map(b => b.text).join("\n\n---\n\n");
+    copyToClipboard(joined);
+  };
+
+  $("outputMode").onchange = () => renderSectionOutputs();
+}
+
 
 // -----------------------------
 // Wire top buttons
@@ -991,5 +1162,8 @@ function init(){
   // Settings may affect dropdowns
   $("issueSelect").dispatchEvent(new Event("change"));
 }
+
+wireSectionOutputs();
+renderSectionOutputs(); // auto-generate on load
 
 init();

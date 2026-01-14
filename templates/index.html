@@ -34,14 +34,27 @@
 
     <!-- Issue Builder -->
     <section id="issue" class="panel active">
-          <div class="card">
-    <div class="row between">
-      <div>
-        <h2>Quick Start</h2>
-        <div class="muted small">Fill the left side → generate → copy. This tool autosaves in your browser.</div>
-      </div>
-      <div id="statusPills" class="pills"></div>
+<div class="card">
+  <div class="row between">
+    <h2>Copy-ready sections</h2>
+    <div class="row">
+      <label class="muted small" style="margin:0;">Format</label>
+      <select id="outputMode" style="max-width:190px;">
+        <option value="substack" selected>Substack (plain)</option>
+        <option value="markdown">Markdown</option>
+      </select>
+      <button id="genSectionsBtn" class="primary">Generate</button>
+      <button id="copyAllSectionsBtn">Copy all</button>
     </div>
+  </div>
+
+  <div class="muted small">
+    Substack (plain) avoids markdown symbols (##, **). Use Copy on any section and paste it where you want.
+  </div>
+
+  <div id="sectionOutputs" class="stack" style="margin-top:10px;"></div>
+</div>
+
 
     <ol class="qs">
       <li><b>Pick a Democracy Watch headline</b> (Democracy Watch tab → “Use this”).</li>
