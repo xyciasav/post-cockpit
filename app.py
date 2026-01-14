@@ -35,30 +35,6 @@ def api_ai_chat():
     return jsonify(r.json())
 
 
-@app.post("/api/ai/chat")
-def ai_chat():
-    data = request.get_json(force=True) or {}
-    messages = data.get("messages") or []
-    model = data.get("model") or OLLAMA_MODEL
-
-    r = requests.post(
-        f"{OLLAMA_BASE}/api/chat",
-        json={
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            # optional knobs:
-            "options": {
-                "temperature": data.get("temperature", 0.7),
-                "top_p": data.get("top_p", 0.9),
-                "num_predict": data.get("num_predict", 220)
-            }
-        },
-        timeout=180
-    )
-    r.raise_for_status()
-    return jsonify(r.json())
-
 # ----------------------------
 # Helpers
 # ----------------------------
