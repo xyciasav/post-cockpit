@@ -1,0 +1,309 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Post Cockpit</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>Post Cockpit</h1>
+        <div class="muted">Substack + Bluesky builder (no login). Autosaves in your browser.</div>
+      </div>
+      <div class="topbar-actions">
+        <button id="newIssueBtn">New issue</button>
+        <button id="dupIssueBtn">Duplicate</button>
+        <button id="exportIssueBtn">Export issue</button>
+        <button id="importIssueBtn">Import issue</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <nav class="tabs">
+      <button class="tab active" data-tab="issue">Issue Builder</button>
+      <button class="tab" data-tab="watch">Democracy Watch</button>
+      <button class="tab" data-tab="sky">Bluesky Pack</button>
+      <button class="tab" data-tab="lab">Hashtag Lab</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- Issue Builder -->
+    <section id="issue" class="panel active">
+      <div class="grid2">
+        <div class="card">
+          <div class="row between">
+            <h2>Issue</h2>
+            <select id="issueSelect"></select>
+          </div>
+
+          <label>Template</label>
+          <select id="templateSelect"></select>
+
+          <label>Title</label>
+          <input id="title" placeholder="Weekly update — ..." />
+
+          <label>Opening</label>
+          <textarea id="opening" rows="8" placeholder="Your voice. Markdown ok."></textarea>
+
+          <div class="row between">
+            <h3>⭐ What’s Important</h3>
+            <button id="addImportantBtn">+ Add</button>
+          </div>
+          <div id="importantList" class="stack"></div>
+
+          <div class="row between">
+            <h3>📅 Upcoming Schedule</h3>
+            <button id="addScheduleBtn">+ Add event</button>
+          </div>
+          <div id="scheduleList" class="stack"></div>
+        </div>
+
+        <div class="card">
+          <h2>Sections</h2>
+
+          <h3>📰 Democracy Watch (selected)</h3>
+          <label>Headline</label>
+          <input id="dwHeadline" placeholder="Headline…" />
+          <label>Source</label>
+          <input id="dwSource" placeholder="Source…" />
+          <label>Link</label>
+          <input id="dwLink" placeholder="https://..." />
+          <label>Summary bullets (one per line)</label>
+          <textarea id="dwBullets" rows="5" placeholder="- bullet&#10;- bullet"></textarea>
+          <label>Image note (optional)</label>
+          <input id="dwImageNote" placeholder="e.g., paste image URL or describe the image" />
+
+          <div class="row between">
+            <h3>📢 Call to Action</h3>
+            <button id="addCtaBtn">+ Add CTA</button>
+          </div>
+          <div id="ctaList" class="stack"></div>
+
+          <h3>💬 Community Corner</h3>
+          <textarea id="communityCorner" rows="6" placeholder="Text + image placeholders. Markdown ok."></textarea>
+
+          <h3>Paste AI JSON (optional)</h3>
+          <div class="muted small">Paste a JSON object matching the issue schema → it will populate fields.</div>
+          <textarea id="aiPaste" rows="6" placeholder='{"title":"...","opening":"...","important":[...],"...": "..."}'></textarea>
+          <div class="row">
+            <button id="applyAiBtn">Apply JSON to this issue</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="row between">
+            <h2>Substack Markdown Output</h2>
+            <div class="row">
+              <button id="genMarkdownBtn" class="primary">Generate</button>
+              <button id="copyMarkdownBtn">Copy</button>
+            </div>
+          </div>
+          <textarea id="markdownOut" rows="20" placeholder="Generate → copy into Substack…"></textarea>
+        </div>
+
+        <div class="card">
+          <div class="row between">
+            <h2>Link tools</h2>
+            <div class="row">
+              <button id="scrapeBtn">Fetch titles</button>
+            </div>
+          </div>
+          <label>Links (one per line)</label>
+          <textarea id="linksIn" rows="8" placeholder="https://mobilize.us/..."></textarea>
+          <div id="scrapeStatus" class="muted small"></div>
+          <div id="scrapeResults" class="stack"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Democracy Watch -->
+    <section id="watch" class="panel">
+      <div class="card">
+        <div class="row between">
+          <div>
+            <h2>Democracy Watch Picker</h2>
+            <div class="muted small">Pulls headlines from RSS feeds you enable in Settings. Click “Use this”.</div>
+          </div>
+          <div class="row">
+            <input id="rssLimit" type="number" min="3" max="30" value="12" style="max-width:110px" />
+            <button id="loadRssBtn" class="primary">Load headlines</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="rssCards" class="grid3"></div>
+    </section>
+
+    <!-- Bluesky -->
+    <section id="sky" class="panel">
+      <div class="grid2">
+        <div class="card">
+          <h2>Bluesky Pack</h2>
+
+          <label>Topic / main message</label>
+          <textarea id="skyTopic" rows="6" placeholder="What are we saying this week?"></textarea>
+
+          <label>Call to action line</label>
+          <input id="skyCta" placeholder="Show up. Bring a friend. Share this." />
+
+          <div class="grid2">
+            <div>
+              <label>Hashtag pack</label>
+              <select id="skyPack"></select>
+            </div>
+            <div>
+              <label>Post count</label>
+              <input id="skyCount" type="number" min="1" max="30" value="10" />
+            </div>
+          </div>
+
+          <label>Custom hashtags (space separated, optional)</label>
+          <input id="skyCustomTags" placeholder="#RageForDemocracyCA #WeThePeople ..." />
+
+          <label>Link policy</label>
+          <select id="skyLinkPolicy">
+            <option value="none">No links</option>
+            <option value="some" selected>Only post 1 + last</option>
+            <option value="every">Every post</option>
+          </select>
+
+          <label>Optional link to include</label>
+          <input id="skyLink" placeholder="https://mobilize.us/..." />
+
+          <div class="row">
+            <button id="genSkyBtn" class="primary">Generate pack</button>
+            <button id="copySkyAllBtn">Copy all</button>
+            <button id="sendToLabBtn">Send to Hashtag Lab</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row between">
+            <h2>Output</h2>
+            <div class="muted small">Each post shows char count (<= 300).</div>
+          </div>
+          <div id="skyOut" class="stack"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Hashtag Lab -->
+    <section id="lab" class="panel">
+      <div class="grid2">
+        <div class="card">
+          <h2>Add metrics</h2>
+          <div class="grid3">
+            <div>
+              <label>Likes</label>
+              <input id="labLikes" type="number" value="0" />
+            </div>
+            <div>
+              <label>Reposts</label>
+              <input id="labReposts" type="number" value="0" />
+            </div>
+            <div>
+              <label>Replies</label>
+              <input id="labReplies" type="number" value="0" />
+            </div>
+          </div>
+
+          <label>Posted text (must include hashtags)</label>
+          <textarea id="labText" rows="6" placeholder="Paste a post here…"></textarea>
+
+          <div class="row">
+            <button id="labAddBtn" class="primary">Add entry</button>
+            <button id="labClearBtn">Clear all</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Top hashtags</h2>
+          <div id="tagRank" class="stack"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Entries</h2>
+        <div id="labEntries" class="stack"></div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="settings" class="panel">
+      <div class="grid2">
+        <div class="card">
+          <h2>Social footer</h2>
+          <div class="grid2">
+            <div>
+              <label>Instagram</label>
+              <input id="sInstagram" />
+            </div>
+            <div>
+              <label>Facebook</label>
+              <input id="sFacebook" />
+            </div>
+            <div>
+              <label>Bluesky</label>
+              <input id="sBluesky" />
+            </div>
+            <div>
+              <label>TikTok</label>
+              <input id="sTiktok" />
+            </div>
+          </div>
+          <label>Discord link</label>
+          <input id="sDiscord" placeholder="https://discord.gg/..." />
+          <div class="row">
+            <button id="saveSocialBtn" class="primary">Save</button>
+          </div>
+
+          <hr class="hr" />
+
+          <h2>RSS feeds (Democracy Watch)</h2>
+          <div class="muted small">Enable/disable feeds here. (Server fetch avoids browser CORS pain.)</div>
+          <textarea id="rssJson" rows="10"></textarea>
+          <div class="row">
+            <button id="saveRssBtn" class="primary">Save feeds</button>
+            <button id="resetRssBtn">Reset</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Templates + hashtag packs</h2>
+
+          <h3>Templates JSON</h3>
+          <textarea id="templatesJson" rows="10"></textarea>
+          <div class="row">
+            <button id="saveTemplatesBtn" class="primary">Save templates</button>
+            <button id="resetTemplatesBtn">Reset</button>
+          </div>
+
+          <h3>Hashtag packs JSON</h3>
+          <textarea id="packsJson" rows="10"></textarea>
+          <div class="row">
+            <button id="savePacksBtn" class="primary">Save packs</button>
+            <button id="resetPacksBtn">Reset</button>
+          </div>
+
+          <hr class="hr" />
+
+          <h2>Export / Import settings</h2>
+          <div class="row">
+            <button id="exportSettingsBtn">Export settings</button>
+            <button id="importSettingsBtn">Import settings</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
