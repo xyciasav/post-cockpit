@@ -1,32 +1,16 @@
-// -----------------------------
-// Storage keys
-// -----------------------------
-const LS_SETTINGS = "pc_settings_v1";
-const LS_ISSUES   = "pc_issues_v1";
-const LS_ACTIVE   = "pc_active_issue_id_v1";
-const LS_LAB      = "pc_hashtag_lab_v1";
+// =============================
+// Social Cockpit (Bluesky-first)
+// =============================
 
-// -----------------------------
-// Defaults (edit these any time)
-// -----------------------------
+// -------- Storage keys --------
+const LS_SETTINGS  = "sc_settings_v1";
+const LS_SIGNALS   = "sc_signals_v1";
+const LS_DRAFTS    = "sc_drafts_v1";
+const LS_CAMPAIGNS = "sc_campaigns_v1";
+const LS_METRICS   = "sc_metrics_v1";
+
+// -------- Defaults --------
 const DEFAULT_SETTINGS = {
-  social: {
-    instagram: "@RageForDemocracyCA",
-    facebook: "Indivisible East Contra Costa County",
-    bluesky: "@RageForDemocracyCA",
-    tiktok: "@RageForDemocracyCA",
-    discord: ""
-  },
-  templates: [
-    {
-      name: "Weekly",
-      sections: ["opening","important","schedule","democracyWatch","callToAction","communityCorner","social"]
-    },
-    {
-      name: "Emergency Action",
-      sections: ["opening","important","schedule","democracyWatch","callToAction","social"]
-    }
-  ],
   rssFeeds: [
     { name: "NPR Politics", url: "https://feeds.npr.org/1014/rss.xml", enabled: true }
   ],
@@ -35,29 +19,31 @@ const DEFAULT_SETTINGS = {
     { name: "Civics Club", tags: ["CivicsClub","KnowYourRights","WeThePeople","Democracy","Community"] },
     { name: "Mutual Aid", tags: ["MutualAid","CommunityCare","NeighborsHelpingNeighbors","Solidarity","LocalAction"] }
   ],
-  blueskyDefaults: { postCount: 10, maxChars: 300, linkPolicy: "some" }
+  boiler: {
+    ctas: [
+      "Show up. Bring a friend.",
+      "RSVP and share this.",
+      "Call your reps. Be loud, be polite, be persistent.",
+      "If you can’t attend, amplify this post."
+    ],
+    closers: [
+      "We keep each other safe.",
+      "The fight is up, not around us.",
+      "If we don’t act, nothing changes."
+    ]
+  },
+  bluesky: { maxChars: 300, defaultCount: 10, linkPolicy: "some" }
 };
 
-function nowIso(){ return new Date().toISOString(); }
+const TEMPLATES = [
+  { id: "headline_why", name: "Headline → why it matters" },
+  { id: "cta_now", name: "Call to action (do something now)" },
+  { id: "myth_fact", name: "Myth vs Fact" },
+  { id: "local_event", name: "Local event push" },
+  { id: "rally", name: "Short rally cry" },
+  { id: "community_win", name: "Community win / recap" }
+];
 
-function defaultIssue() {
-  return {
-    id: nowIso(),
-    title: "",
-    opening: "",
-    important: [],
-    schedule: [],
-    democracyWatch: { headline: "", source: "", summaryBullets: [], link: "", imageNote: "" },
-    callToAction: [],
-    communityCorner: "",
-    social: null,   // null means "use settings social"
-    meta: { createdAt: nowIso(), updatedAt: nowIso(), templateName: "Weekly" }
-  };
-}
-
-// -----------------------------
-// Utilities
-// -----------------------------
 const $ = (id) => document.getElementById(id);
 
 function loadJson(key, fallback) {
@@ -70,59 +56,57 @@ function loadJson(key, fallback) {
   }
 }
 function saveJson(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
-
-function deepClone(obj){ return JSON.parse(JSON.stringify(obj)); }
+function nowMs(){ return Date.now(); }
 
 function copyToClipboard(text){
   navigator.clipboard.writeText(text || "");
 }
 
-function normalizeTags(arr){
-  return (arr || [])
-    .map(t => (t || "").trim())
+function normalizeTags(tags){
+  return (tags || [])
+    .map(t => String(t||"").trim())
     .filter(Boolean)
-    .map(t => t.replace(/^#+/, "")); // strip leading #
+    .map(t => t.replace(/^#+/, ""));
 }
 
-function hashtagExtract(text){
+function hashtagString(tags){
+  const uniq = [...new Set(normalizeTags(tags))];
+  return uniq.map(t => `#${t}`).join(" ");
+}
+
+function safeTrim(x){ return String(x||"").trim(); }
+
+function escapeHtml(str){
+  return String(str ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function escapeAttr(str){ return escapeHtml(str).replaceAll("\n"," "); }
+
+function scoreEntry(e){
+  // weight reposts/replies higher
+  return (Number(e.likes)||0) + (Number(e.reposts)||0)*2 + (Number(e.replies)||0)*2;
+}
+
+function extractHashtags(text){
   const m = (text || "").match(/#[A-Za-z0-9_]+/g) || [];
   return [...new Set(m.map(x => x.toLowerCase()))];
 }
 
-function scoreEntry(e){
-  return (Number(e.likes)||0) + (Number(e.reposts)||0)*2 + (Number(e.replies)||0)*2;
-}
+// -------- App state --------
+let settings  = loadJson(LS_SETTINGS, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+let signals   = loadJson(LS_SIGNALS, []);
+let drafts    = loadJson(LS_DRAFTS, []);
+let campaigns = loadJson(LS_CAMPAIGNS, []);
+let metrics   = loadJson(LS_METRICS, []);
 
-function prettyDate(iso){
-  if(!iso) return "";
-  // accept "YYYY-MM-DD" or ISO
-  try {
-    const d = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
-    return d.toLocaleDateString(undefined, { weekday:"short", year:"numeric", month:"short", day:"numeric" });
-  } catch { return iso; }
-}
+let lastGeneratedDrafts = [];   // unsaved studio output
+let lastCampaignDrafts = [];    // unsaved campaign output
 
-function safeLink(x){ return (x || "").trim(); }
-
-// -----------------------------
-// State
-// -----------------------------
-let settings = loadJson(LS_SETTINGS, deepClone(DEFAULT_SETTINGS));
-let issues = loadJson(LS_ISSUES, []);
-let lab = loadJson(LS_LAB, []);
-let activeIssueId = localStorage.getItem(LS_ACTIVE) || null;
-
-if (!issues.length) {
-  const i = defaultIssue();
-  issues = [i];
-  activeIssueId = i.id;
-  saveJson(LS_ISSUES, issues);
-  localStorage.setItem(LS_ACTIVE, activeIssueId);
-}
-
-// -----------------------------
-// Tabs
-// -----------------------------
+// -------- Tabs --------
 function initTabs(){
   document.querySelectorAll(".tab").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -134,530 +118,437 @@ function initTabs(){
   });
 }
 
-// -----------------------------
-// Issue selection + saving
-// -----------------------------
-function getActiveIssue(){
-  return issues.find(x => x.id === activeIssueId) || issues[0];
-}
+// -------- Feed Desk (RSS) --------
+async function loadRss(){
+  const enabled = (settings.rssFeeds || []).filter(f => f.enabled);
+  const limit = Number($("rssLimit").value) || 12;
 
-function setActiveIssue(id){
-  activeIssueId = id;
-  localStorage.setItem(LS_ACTIVE, id);
-  renderIssueSelect();
-  renderIssueForm();
-}
+  $("rssCards").innerHTML = `<div class="muted small">Loading…</div>`;
 
-function persistIssues(){
-  const idx = issues.findIndex(x => x.id === activeIssueId);
-  if (idx >= 0) issues[idx].meta.updatedAt = nowIso();
-  saveJson(LS_ISSUES, issues);
-}
+  const r = await fetch("/api/rss", {
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ feeds: enabled, limit })
+  });
+  const data = await r.json();
 
-function renderIssueSelect(){
-  const sel = $("issueSelect");
-  sel.innerHTML = "";
-  issues
-    .slice()
-    .sort((a,b) => (b.meta?.createdAt||"").localeCompare(a.meta?.createdAt||""))
-    .forEach(issue => {
-      const opt = document.createElement("option");
-      opt.value = issue.id;
-      const title = (issue.title || "Untitled").slice(0, 40);
-      opt.textContent = `${title}  •  ${prettyDate(issue.meta?.createdAt || issue.id)}`;
-      if (issue.id === activeIssueId) opt.selected = true;
-      sel.appendChild(opt);
+  const items = (data.items || []).filter(x => x.title && x.link && !x.error);
+  const wrap = $("rssCards");
+  wrap.innerHTML = "";
+
+  if (!items.length){
+    wrap.innerHTML = `<div class="item"><div class="muted">No items found. Check RSS feeds in Settings.</div></div>`;
+    return;
+  }
+
+  items.forEach(it => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="muted small">${escapeHtml(it.feed || "")}</div>
+      <b style="display:block;margin:6px 0 8px 0;">${escapeHtml(it.title)}</b>
+      <div class="row">
+        <a href="${escapeAttr(it.link)}" target="_blank" rel="noreferrer"><button>Open</button></a>
+        <button class="primary saveSig">Save Signal</button>
+      </div>
+    `;
+    div.querySelector(".saveSig").onclick = () => saveSignal({
+      title: it.title,
+      source: it.feed || "",
+      link: it.link,
+      published: it.published || ""
     });
-
-  sel.onchange = () => setActiveIssue(sel.value);
-}
-
-function newIssue(){
-  const i = defaultIssue();
-  issues.push(i);
-  persistIssues();
-  setActiveIssue(i.id);
-}
-
-function duplicateIssue(){
-  const cur = getActiveIssue();
-  const clone = deepClone(cur);
-  clone.id = nowIso();
-  clone.meta = { ...clone.meta, createdAt: nowIso(), updatedAt: nowIso() };
-  clone.title = clone.title ? `${clone.title} (copy)` : "Untitled (copy)";
-  issues.push(clone);
-  persistIssues();
-  setActiveIssue(clone.id);
-}
-
-function exportIssue(){
-  const cur = getActiveIssue();
-  downloadJson(cur, `issue-${(cur.meta?.createdAt||cur.id).slice(0,10)}.json`);
-}
-
-function importIssue(){
-  pickJsonFile((obj) => {
-    if (!obj || !obj.id) obj.id = nowIso();
-    if (!obj.meta) obj.meta = { createdAt: nowIso(), updatedAt: nowIso(), templateName: "Weekly" };
-    issues.push(obj);
-    persistIssues();
-    setActiveIssue(obj.id);
+    wrap.appendChild(div);
   });
 }
 
-function downloadJson(obj, filename){
-  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function pickJsonFile(cb){
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "application/json";
-  input.onchange = async () => {
-    const f = input.files?.[0];
-    if(!f) return;
-    const txt = await f.text();
-    try { cb(JSON.parse(txt)); }
-    catch { alert("Invalid JSON file."); }
+function saveSignal({title, source, link, published}){
+  const sig = {
+    id: `sig_${nowMs()}_${Math.random().toString(16).slice(2)}`,
+    title: safeTrim(title),
+    source: safeTrim(source),
+    link: safeTrim(link),
+    published: safeTrim(published),
+    notes: "",
+    tags: [],
+    savedAt: nowMs()
   };
-  input.click();
+  signals.unshift(sig);
+  saveJson(LS_SIGNALS, signals);
+  renderSignals();
+  renderStudioSignalSelect();
 }
 
-// -----------------------------
-// Templates + Settings rendering
-// -----------------------------
-function renderTemplateSelect(){
-  const sel = $("templateSelect");
+function renderSignals(){
+  const q = safeTrim($("signalSearch").value).toLowerCase();
+  const wrap = $("signalList");
+  wrap.innerHTML = "";
+
+  const filtered = signals.filter(s => {
+    if (!q) return true;
+    return (s.title||"").toLowerCase().includes(q)
+      || (s.source||"").toLowerCase().includes(q)
+      || (s.link||"").toLowerCase().includes(q);
+  });
+
+  if (!filtered.length){
+    wrap.innerHTML = `<div class="item"><div class="muted">No saved signals yet.</div></div>`;
+    return;
+  }
+
+  filtered.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="meta">
+        <span class="pill">${escapeHtml(s.source || "Source")}</span>
+        <span class="pill">${new Date(s.savedAt).toLocaleDateString()}</span>
+      </div>
+      <b style="display:block;margin:6px 0 6px 0;">${escapeHtml(s.title)}</b>
+      <div class="muted small">${escapeHtml(s.link)}</div>
+      <div class="row">
+        <a href="${escapeAttr(s.link)}" target="_blank" rel="noreferrer"><button>Open</button></a>
+        <button class="primary draftFrom">Draft from this</button>
+        <button class="delSig danger">Delete</button>
+      </div>
+    `;
+    div.querySelector(".draftFrom").onclick = () => {
+      document.querySelector('.tab[data-tab="studio"]').click();
+      $("studioSourceMode").value = "signal";
+      syncStudioSourceMode();
+      $("studioSignalSelect").value = s.id;
+      $("studioNotes").value = s.notes || "";
+      updateStudioPills();
+    };
+    div.querySelector(".delSig").onclick = () => {
+      signals = signals.filter(x => x.id !== s.id);
+      saveJson(LS_SIGNALS, signals);
+      renderSignals();
+      renderStudioSignalSelect();
+    };
+    wrap.appendChild(div);
+  });
+}
+
+// -------- Post Studio --------
+function renderTemplateSelects(){
+  const studioSel = $("studioTemplate");
+  const metricSel = $("metricTemplate");
+  studioSel.innerHTML = "";
+  metricSel.innerHTML = `<option value="">(optional)</option>`;
+
+  TEMPLATES.forEach(t => {
+    const o = document.createElement("option");
+    o.value = t.id;
+    o.textContent = t.name;
+    studioSel.appendChild(o);
+
+    const m = document.createElement("option");
+    m.value = t.id;
+    m.textContent = t.name;
+    metricSel.appendChild(m);
+  });
+
+  studioSel.value = "headline_why";
+}
+
+function renderStudioSignalSelect(){
+  const sel = $("studioSignalSelect");
   sel.innerHTML = "";
-  settings.templates.forEach(t => {
+  if (!signals.length){
     const opt = document.createElement("option");
-    opt.value = t.name;
-    opt.textContent = t.name;
+    opt.value = "";
+    opt.textContent = "(No signals saved yet)";
+    sel.appendChild(opt);
+    return;
+  }
+
+  signals.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = `${(s.source||"").slice(0,22)} • ${(s.title||"").slice(0,80)}`;
     sel.appendChild(opt);
   });
+}
 
-  const cur = getActiveIssue();
-  sel.value = cur.meta?.templateName || "Weekly";
-  sel.onchange = () => {
-    cur.meta.templateName = sel.value;
-    persistIssues();
+function renderPackChecks(){
+  const wrapA = $("packChecks");
+  const wrapB = $("campPackChecks");
+  wrapA.innerHTML = "";
+  wrapB.innerHTML = "";
+
+  (settings.hashtagPacks || []).forEach((p, idx) => {
+    const idA = `pack_${idx}`;
+    const idB = `camp_pack_${idx}`;
+
+    const elA = document.createElement("label");
+    elA.className = "check";
+    elA.innerHTML = `<input type="checkbox" data-pack="${idx}" id="${idA}" /> ${escapeHtml(p.name)}`;
+    wrapA.appendChild(elA);
+
+    const elB = document.createElement("label");
+    elB.className = "check";
+    elB.innerHTML = `<input type="checkbox" data-pack="${idx}" id="${idB}" /> ${escapeHtml(p.name)}`;
+    wrapB.appendChild(elB);
+  });
+}
+
+function getSelectedPackTags(prefix){
+  const tags = [];
+  document.querySelectorAll(`input[id^="${prefix}"]`).forEach(cb => {
+    if (!cb.checked) return;
+    const idx = Number(cb.dataset.pack);
+    const pack = (settings.hashtagPacks || [])[idx];
+    if (pack?.tags?.length) tags.push(...pack.tags);
+  });
+  return normalizeTags(tags);
+}
+
+function syncStudioSourceMode(){
+  const mode = $("studioSourceMode").value;
+  $("studioSignalPick").style.display = mode === "signal" ? "" : "none";
+  $("studioManualPick").style.display = mode === "manual" ? "" : "none";
+  updateStudioPills();
+}
+
+function syncPlatformOptions(){
+  const p = $("studioPlatform").value;
+  $("bskyOptions").style.display = p === "bluesky" ? "" : "none";
+  $("igOptions").style.display = p === "instagram" ? "" : "none";
+}
+
+function updateStudioPills(){
+  const el = $("studioPills");
+  if (!el) return;
+
+  const mode = $("studioSourceMode").value;
+  let hasSource = false;
+  if (mode === "signal") hasSource = !!$("studioSignalSelect").value;
+  if (mode === "manual") hasSource = safeTrim($("studioManualText").value).length > 0;
+
+  const hasPacks = getSelectedPackTags("pack_").length > 0;
+
+  const pills = [
+    { label: "Source", ok: hasSource },
+    { label: "Hashtags", ok: hasPacks }
+  ];
+
+  el.innerHTML = pills.map(p => `<span class="pill ${p.ok ? "ok" : "warn"}">${p.label}</span>`).join("");
+}
+
+function getStudioContext(){
+  const mode = $("studioSourceMode").value;
+  const notes = safeTrim($("studioNotes").value);
+  if (mode === "manual"){
+    return {
+      title: "",
+      source: "",
+      link: "",
+      base: safeTrim($("studioManualText").value),
+      notes
+    };
+  }
+
+  const sigId = $("studioSignalSelect").value;
+  const s = signals.find(x => x.id === sigId);
+  if (!s) return { title:"", source:"", link:"", base:"", notes };
+
+  return {
+    title: s.title || "",
+    source: s.source || "",
+    link: s.link || "",
+    base: `${s.title || ""}${s.source ? ` (${s.source})` : ""}${s.link ? `\n${s.link}` : ""}`.trim(),
+    notes
   };
 }
 
-function renderSettings(){
-  // Social
-  $("sInstagram").value = settings.social.instagram || "";
-  $("sFacebook").value  = settings.social.facebook || "";
-  $("sBluesky").value   = settings.social.bluesky || "";
-  $("sTiktok").value    = settings.social.tiktok || "";
-  $("sDiscord").value   = settings.social.discord || "";
+function pickOne(arr){
+  if (!arr || !arr.length) return "";
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-  $("saveSocialBtn").onclick = () => {
-    settings.social.instagram = $("sInstagram").value.trim();
-    settings.social.facebook  = $("sFacebook").value.trim();
-    settings.social.bluesky   = $("sBluesky").value.trim();
-    settings.social.tiktok    = $("sTiktok").value.trim();
-    settings.social.discord   = $("sDiscord").value.trim();
-    saveJson(LS_SETTINGS, settings);
-    alert("Saved.");
-  };
+function buildDraftText({platform, templateId, tone, context, tags, linkPolicy, linkOverride, index, total}){
+  const max = settings.bluesky.maxChars || 300;
+  const tagStr = hashtagString(tags);
 
-  // RSS feeds JSON
-  $("rssJson").value = JSON.stringify(settings.rssFeeds, null, 2);
-  $("saveRssBtn").onclick = () => {
-    try{
-      settings.rssFeeds = JSON.parse($("rssJson").value);
-      saveJson(LS_SETTINGS, settings);
-      alert("Saved feeds.");
-    } catch { alert("Invalid RSS JSON."); }
-  };
-  $("resetRssBtn").onclick = () => {
-    settings.rssFeeds = deepClone(DEFAULT_SETTINGS.rssFeeds);
-    $("rssJson").value = JSON.stringify(settings.rssFeeds, null, 2);
-    saveJson(LS_SETTINGS, settings);
-  };
+  const title = context.title || context.base || "";
+  const src = context.source ? ` (${context.source})` : "";
+  const link = safeTrim(linkOverride || context.link || "");
 
-  // Templates
-  $("templatesJson").value = JSON.stringify(settings.templates, null, 2);
-  $("saveTemplatesBtn").onclick = () => {
-    try{
-      settings.templates = JSON.parse($("templatesJson").value);
-      saveJson(LS_SETTINGS, settings);
-      renderTemplateSelect();
-      alert("Saved templates.");
-    } catch { alert("Invalid templates JSON."); }
-  };
-  $("resetTemplatesBtn").onclick = () => {
-    settings.templates = deepClone(DEFAULT_SETTINGS.templates);
-    $("templatesJson").value = JSON.stringify(settings.templates, null, 2);
-    saveJson(LS_SETTINGS, settings);
-    renderTemplateSelect();
-  };
+  const cta = pickOne(settings.boiler.ctas) || "Show up. Bring a friend.";
+  const closer = pickOne(settings.boiler.closers) || "The fight is up, not around us.";
 
-  // Packs
-  $("packsJson").value = JSON.stringify(settings.hashtagPacks, null, 2);
-  $("savePacksBtn").onclick = () => {
-    try{
-      settings.hashtagPacks = JSON.parse($("packsJson").value);
-      saveJson(LS_SETTINGS, settings);
-      renderSkyPackSelect();
-      alert("Saved packs.");
-    } catch { alert("Invalid packs JSON."); }
-  };
-  $("resetPacksBtn").onclick = () => {
-    settings.hashtagPacks = deepClone(DEFAULT_SETTINGS.hashtagPacks);
-    $("packsJson").value = JSON.stringify(settings.hashtagPacks, null, 2);
-    saveJson(LS_SETTINGS, settings);
-    renderSkyPackSelect();
-  };
+  // tone modifiers (lightweight)
+  const toneLead = {
+    plain: "",
+    urgent: "This is happening now.\n",
+    angry: "I’m furious — and we’re not looking away.\n",
+    hopeful: "We can still win this.\n"
+  }[tone] || "";
 
-  // Export/import settings
-  $("exportSettingsBtn").onclick = () => downloadJson(settings, "post-cockpit-settings.json");
-  $("importSettingsBtn").onclick = () => {
-    pickJsonFile((obj) => {
-      settings = obj;
-      saveJson(LS_SETTINGS, settings);
-      renderTemplateSelect();
-      renderSkyPackSelect();
-      renderSettings();
-      alert("Imported settings.");
+  // template bodies
+  let body = "";
+  if (templateId === "headline_why"){
+    body = `${toneLead}${title}${src}\n\nWhy it matters: power without accountability becomes the norm.`;
+  } else if (templateId === "cta_now"){
+    body = `${toneLead}${title}\n\n${cta}`;
+  } else if (templateId === "myth_fact"){
+    body = `${toneLead}MYTH: “This is normal.”\nFACT: It’s a warning sign — and it escalates when we stay quiet.\n\n${cta}`;
+  } else if (templateId === "local_event"){
+    body = `${toneLead}Local action matters.\n\n${cta}\n\n${closer}`;
+  } else if (templateId === "rally"){
+    body = `${toneLead}Democracy vs. authoritarianism.\n\nWe choose democracy.\n\n${cta}`;
+  } else if (templateId === "community_win"){
+    body = `${toneLead}Community is the antidote.\n\nWe showed up. We helped. We keep going.\n\n${closer}`;
+  } else {
+    body = `${toneLead}${title}\n\n${cta}`;
+  }
+
+  // platform-specific assembly
+  if (platform === "instagram"){
+    const igCTA = safeTrim($("igCTA").value) || cta;
+    const tagStyle = $("igTagStyle").value || "end";
+    const linkLine = link ? `\n\nLink: ${link}` : "";
+
+    const base = `${body}\n\n${igCTA}${linkLine}`.trim();
+    if (!tagStr) return base;
+
+    if (tagStyle === "comment"){
+      return `${base}\n\n—\nHashtags (first comment):\n${tagStr}`;
+    }
+    return `${base}\n\n${tagStr}`;
+  }
+
+  // Bluesky
+  let useLink = "";
+  if (link && linkPolicy === "every") useLink = link;
+  if (link && linkPolicy === "some" && (index === 0 || index === total-1)) useLink = link;
+
+  let text = body.trim();
+  if (useLink) text += `\n\n${useLink}`;
+  if (tagStr) text += `\n\n${tagStr}`;
+
+  // enforce 300 chars
+  if (text.length > max) text = text.slice(0, max-1) + "…";
+  return text;
+}
+
+function generateDrafts(){
+  const platform = $("studioPlatform").value;
+  const templateId = $("studioTemplate").value;
+  const tone = $("studioTone").value;
+  const count = Math.max(1, Math.min(30, Number($("studioCount").value) || settings.bluesky.defaultCount || 10));
+
+  const tags = getSelectedPackTags("pack_");
+  const context = getStudioContext();
+
+  const linkPolicy = $("studioLinkPolicy").value || settings.bluesky.linkPolicy || "some";
+  const linkOverride = safeTrim($("studioLink").value);
+
+  lastGeneratedDrafts = [];
+  for (let i=0; i<count; i++){
+    const text = buildDraftText({
+      platform,
+      templateId,
+      tone,
+      context,
+      tags,
+      linkPolicy,
+      linkOverride,
+      index: i,
+      total: count
     });
-  };
+
+    lastGeneratedDrafts.push({
+      id: `tmp_${nowMs()}_${i}`,
+      platform,
+      template: templateId,
+      tone,
+      text,
+      hashtags: tags,
+      link: linkOverride || context.link || "",
+      sourceTitle: context.title || "",
+      sourceLink: context.link || "",
+      createdAt: nowMs()
+    });
+  }
+
+  renderDraftOutput();
 }
 
-// -----------------------------
-// Issue form rendering
-// -----------------------------
-function renderIssueForm(){
-  const cur = getActiveIssue();
-
-  $("title").value = cur.title || "";
-  $("opening").value = cur.opening || "";
-  $("communityCorner").value = cur.communityCorner || "";
-
-  // Democracy watch fields
-  $("dwHeadline").value = cur.democracyWatch?.headline || "";
-  $("dwSource").value = cur.democracyWatch?.source || "";
-  $("dwLink").value = cur.democracyWatch?.link || "";
-  $("dwBullets").value = (cur.democracyWatch?.summaryBullets || []).map(b => `- ${b}`).join("\n");
-  $("dwImageNote").value = cur.democracyWatch?.imageNote || "";
-
-  // Inputs -> save on change (lightweight)
-  $("title").oninput = () => { cur.title = $("title").value; persistIssues(); renderIssueSelect(); };
-  $("opening").oninput = () => { cur.opening = $("opening").value; persistIssues(); };
-  $("communityCorner").oninput = () => { cur.communityCorner = $("communityCorner").value; persistIssues(); };
-
-  const saveDW = () => {
-    if(!cur.democracyWatch) cur.democracyWatch = {headline:"",source:"",summaryBullets:[],link:"",imageNote:""};
-    cur.democracyWatch.headline = $("dwHeadline").value.trim();
-    cur.democracyWatch.source   = $("dwSource").value.trim();
-    cur.democracyWatch.link     = $("dwLink").value.trim();
-    cur.democracyWatch.imageNote= $("dwImageNote").value.trim();
-    cur.democracyWatch.summaryBullets = ($("dwBullets").value || "")
-      .split("\n")
-      .map(l => l.trim().replace(/^-+\s*/, ""))
-      .filter(Boolean);
-    persistIssues();
-  };
-  ["dwHeadline","dwSource","dwLink","dwBullets","dwImageNote"].forEach(id => $(id).oninput = saveDW);
-
-  renderImportantList();
-  renderScheduleList();
-  renderCtaList();
-}
-
-// -----------------------------
-// List editors (Important / Schedule / CTA)
-// -----------------------------
-function renderImportantList(){
-  const cur = getActiveIssue();
-  const wrap = $("importantList");
+function renderDraftOutput(){
+  const wrap = $("draftOutput");
   wrap.innerHTML = "";
 
-  (cur.important || []).forEach((txt, idx) => {
+  if (!lastGeneratedDrafts.length){
+    wrap.innerHTML = `<div class="item"><div class="muted">Generate drafts to see output here.</div></div>`;
+    return;
+  }
+
+  lastGeneratedDrafts.forEach((d, idx) => {
     const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
-      <label>Item ${idx+1}</label>
-      <textarea rows="2" data-idx="${idx}" class="impText">${escapeHtml(txt)}</textarea>
-      <div class="row">
-        <button class="impUp" data-idx="${idx}">Up</button>
-        <button class="impDown" data-idx="${idx}">Down</button>
-        <button class="impDel" data-idx="${idx}">Delete</button>
-      </div>
-    `;
-    wrap.appendChild(div);
-  });
+    const over = (d.platform === "bluesky" && d.text.length > (settings.bluesky.maxChars||300));
+    div.className = "item " + (over ? "bad" : "good");
 
-  wrap.querySelectorAll(".impText").forEach(t => {
-    t.oninput = () => {
-      const i = Number(t.dataset.idx);
-      cur.important[i] = t.value;
-      persistIssues();
-    };
-  });
-
-  wrap.querySelectorAll(".impDel").forEach(b => b.onclick = () => {
-    cur.important.splice(Number(b.dataset.idx), 1);
-    persistIssues();
-    renderImportantList();
-  });
-
-  wrap.querySelectorAll(".impUp").forEach(b => b.onclick = () => {
-    const i = Number(b.dataset.idx);
-    if (i <= 0) return;
-    [cur.important[i-1], cur.important[i]] = [cur.important[i], cur.important[i-1]];
-    persistIssues();
-    renderImportantList();
-  });
-
-  wrap.querySelectorAll(".impDown").forEach(b => b.onclick = () => {
-    const i = Number(b.dataset.idx);
-    if (i >= cur.important.length - 1) return;
-    [cur.important[i+1], cur.important[i]] = [cur.important[i], cur.important[i+1]];
-    persistIssues();
-    renderImportantList();
-  });
-
-  $("addImportantBtn").onclick = () => {
-    cur.important.push("");
-    persistIssues();
-    renderImportantList();
-  };
-}
-
-function renderScheduleList(){
-  const cur = getActiveIssue();
-  const wrap = $("scheduleList");
-  wrap.innerHTML = "";
-
-  (cur.schedule || []).forEach((ev, idx) => {
-    const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
-      <div class="row between">
-        <b>Event ${idx+1}</b>
-        <button class="schedDel" data-idx="${idx}">Delete</button>
-      </div>
-      <div class="kv">
-        <div>
-          <label>Date (YYYY-MM-DD)</label>
-          <input type="date" class="sched" data-k="date" data-idx="${idx}" value="${escapeAttr(ev.date||"")}" />
-        </div>
-        <div>
-          <label>Name</label>
-          <input class="sched" data-k="name" data-idx="${idx}" value="${escapeAttr(ev.name||"")}" />
-        </div>
-        <div>
-          <label>Location</label>
-          <input class="sched" data-k="location" data-idx="${idx}" value="${escapeAttr(ev.location||"")}" />
-        </div>
-        <div>
-          <label>Time</label>
-          <input class="sched" data-k="time" data-idx="${idx}" value="${escapeAttr(ev.time||"")}" />
-        </div>
-        <div>
-          <label>Focus/Topic</label>
-          <input class="sched" data-k="focus" data-idx="${idx}" value="${escapeAttr(ev.focus||"")}" />
-        </div>
-        <div>
-          <label>Link</label>
-          <input class="sched" data-k="link" data-idx="${idx}" value="${escapeAttr(ev.link||"")}" />
-        </div>
-      </div>
-    `;
-    wrap.appendChild(div);
-  });
-
-  wrap.querySelectorAll(".sched").forEach(inp => {
-    inp.oninput = () => {
-      const i = Number(inp.dataset.idx);
-      const k = inp.dataset.k;
-      cur.schedule[i][k] = inp.value;
-      persistIssues();
-    };
-  });
-
-  wrap.querySelectorAll(".schedDel").forEach(b => b.onclick = () => {
-    cur.schedule.splice(Number(b.dataset.idx), 1);
-    persistIssues();
-    renderScheduleList();
-  });
-
-  $("addScheduleBtn").onclick = () => {
-    cur.schedule.push({ date:"", name:"", location:"", time:"", focus:"", link:"" });
-    persistIssues();
-    renderScheduleList();
-  };
-}
-
-function renderCtaList(){
-  const cur = getActiveIssue();
-  const wrap = $("ctaList");
-  wrap.innerHTML = "";
-
-  (cur.callToAction || []).forEach((cta, idx) => {
-    const div = document.createElement("div");
-    div.className = "item";
     div.innerHTML = `
       <div class="row between">
-        <b>CTA ${idx+1}</b>
-        <button class="ctaDel" data-idx="${idx}">Delete</button>
-      </div>
-      <div class="kv">
-        <div>
-          <label>Action verb</label>
-          <input class="cta" data-k="action" data-idx="${idx}" value="${escapeAttr(cta.action||"")}" />
+        <div class="meta">
+          <span class="pill">${escapeHtml(d.platform)}</span>
+          <span class="pill">${escapeHtml(TEMPLATES.find(t=>t.id===d.template)?.name || d.template)}</span>
+          ${d.platform === "bluesky" ? `<span class="pill ${d.text.length>300?"warn":"ok"}">${d.text.length}/300</span>` : `<span class="pill">${d.text.length} chars</span>`}
         </div>
-<div>
-  <label>Deadline (date)</label>
-  <input type="date" class="cta" data-k="deadlineDate" data-idx="${idx}" value="${escapeAttr(cta.deadlineDate||"")}" />
-</div>
-<div>
-  <label>Deadline (text)</label>
-  <input class="cta" data-k="deadline" data-idx="${idx}" value="${escapeAttr(cta.deadline||"")}" placeholder="e.g., Tomorrow" />
-</div>
-        <div style="flex:2 1 260px">
-          <label>One sentence</label>
-          <input class="cta" data-k="text" data-idx="${idx}" value="${escapeAttr(cta.text||"")}" />
-        </div>
-        <div style="flex:2 1 260px">
-          <label>Link</label>
-          <input class="cta" data-k="link" data-idx="${idx}" value="${escapeAttr(cta.link||"")}" />
+        <div class="row">
+          <button class="copyOne">Copy</button>
+          <button class="delOne danger">Remove</button>
         </div>
       </div>
+      <textarea rows="5" class="draftText"></textarea>
     `;
+
+    const ta = div.querySelector(".draftText");
+    ta.value = d.text;
+    ta.oninput = () => { d.text = ta.value; };
+
+    div.querySelector(".copyOne").onclick = () => copyToClipboard(d.text);
+    div.querySelector(".delOne").onclick = () => {
+      lastGeneratedDrafts.splice(idx, 1);
+      renderDraftOutput();
+    };
+
     wrap.appendChild(div);
   });
+}
 
-  wrap.querySelectorAll(".cta").forEach(inp => {
-    inp.oninput = () => {
-      const i = Number(inp.dataset.idx);
-      const k = inp.dataset.k;
-      cur.callToAction[i][k] = inp.value;
-      persistIssues();
-    };
+function copyAllStudioDrafts(){
+  if (!lastGeneratedDrafts.length) return;
+  const joined = lastGeneratedDrafts.map((d,i)=>`(${i+1}) ${d.text}`).join("\n\n---\n\n");
+  copyToClipboard(joined);
+}
+
+function saveStudioDraftsToLibrary(){
+  if (!lastGeneratedDrafts.length) return;
+  lastGeneratedDrafts.forEach(d => {
+    drafts.unshift({
+      id: `dft_${nowMs()}_${Math.random().toString(16).slice(2)}`,
+      platform: d.platform,
+      template: d.template,
+      tone: d.tone,
+      text: d.text,
+      hashtags: d.hashtags || [],
+      link: d.link || "",
+      sourceTitle: d.sourceTitle || "",
+      sourceLink: d.sourceLink || "",
+      createdAt: nowMs()
+    });
   });
-
-  wrap.querySelectorAll(".ctaDel").forEach(b => b.onclick = () => {
-    cur.callToAction.splice(Number(b.dataset.idx), 1);
-    persistIssues();
-    renderCtaList();
-  });
-
-  $("addCtaBtn").onclick = () => {
-    cur.callToAction.push({ action:"", text:"", link:"", deadline:"", deadlineDate:"" });
-    persistIssues();
-    renderCtaList();
-  };
+  saveJson(LS_DRAFTS, drafts);
+  renderDraftLibrary();
+  alert("Saved to Draft Library.");
 }
 
-// -----------------------------
-// Markdown generator (deterministic)
-// -----------------------------
-function buildMarkdown(issue){
-  const social = issue.social || settings.social;
-
-  const lines = [];
-  lines.push(`# ${issue.title || "Untitled"}`);
-  lines.push("");
-  if (issue.opening) lines.push(issue.opening.trim(), "");
-
-  // Important
-  lines.push("## ⭐ What’s Important (Read First)");
-  if ((issue.important || []).length) {
-    issue.important.forEach((x, i) => {
-      if (x && x.trim()) lines.push(`${i+1}) ${x.trim()}`);
-    });
-  } else {
-    lines.push("_(Add key points here.)_");
-  }
-  lines.push("");
-
-  // Schedule
-  lines.push("## 📅 Upcoming Schedule");
-  if ((issue.schedule || []).length) {
-    issue.schedule.forEach(ev => {
-      const d = ev.date ? prettyDate(ev.date) : "Date TBD";
-      lines.push(`- **${d} — ${ev.name || "Event"}**`);
-      if (ev.location) lines.push(`  - 📍 ${ev.location}`);
-      if (ev.time)     lines.push(`  - 🕔 ${ev.time}`);
-      if (ev.focus)    lines.push(`  - 🎯 ${ev.focus}`);
-      if (ev.link)     lines.push(`  - 👉 ${ev.link}`);
-    });
-  } else {
-    lines.push("_(Add events here.)_");
-  }
-  lines.push("");
-
-  // Democracy Watch
-  lines.push("## 📰 Democracy Watch");
-  const dw = issue.democracyWatch || {};
-  if (dw.headline || dw.link) {
-    const src = dw.source ? ` (${dw.source})` : "";
-    lines.push(`**${dw.headline || "Headline"}**${src}`);
-    (dw.summaryBullets || []).forEach(b => lines.push(`- ${b}`));
-    if (dw.imageNote) lines.push(`- _(Image note: ${dw.imageNote})_`);
-    if (dw.link) lines.push(`👉 ${dw.link}`);
-  } else {
-    lines.push("_(Pick a headline in the Democracy Watch tab, or paste it here.)_");
-  }
-  lines.push("");
-
-  // CTA
-  lines.push("## 📢 Call to Action");
-  if ((issue.callToAction || []).length) {
-    issue.callToAction.forEach(cta => {
-      const dead = cta.deadline ? ` _(Deadline: ${cta.deadline})_` : "";
-      const link = cta.link ? ` 👉 ${cta.link}` : "";
-      lines.push(`- **${cta.action || "Action"}:** ${(cta.text || "").trim()}${link}${dead}`);
-    });
-  } else {
-    lines.push("_(Add 1–3 actions people can do today.)_");
-  }
-  lines.push("");
-
-  // Community Corner
-  lines.push("## 💬 Community Corner");
-  lines.push(issue.communityCorner?.trim() || "_(Add community highlight / photo notes here.)_");
-  lines.push("");
-  lines.push("Send photos/clips/art/reflections to **ragefordemocracy@gmail.com** — we’ll highlight community submissions in the next issue.");
-  lines.push("");
-
-  // Social
-  lines.push("## 📲 Stay Connected");
-  lines.push(`📸 Instagram → ${social.instagram || ""}`);
-  lines.push(`😁 Facebook → ${social.facebook || ""}`);
-  lines.push(`🔵 BlueSky → ${social.bluesky || ""}`);
-  lines.push(`📹 TikTok → ${social.tiktok || ""}`);
-  if (social.discord) lines.push(`💬 Discord → ${social.discord}`);
-  lines.push("");
-  lines.push("✊ Forward this newsletter to a friend — let’s grow the movement, one neighbor at a time.");
-  lines.push("");
-
-  return lines.join("\n");
-}
-
-function wireMarkdown(){
-  $("genMarkdownBtn").onclick = () => {
-    const md = buildMarkdown(getActiveIssue());
-    $("markdownOut").value = md;
-  };
-  $("copyMarkdownBtn").onclick = () => copyToClipboard($("markdownOut").value);
-}
-
-// -----------------------------
-// Link scraper
-// -----------------------------
+// -------- Link scraper --------
 async function scrapeLinks(){
-  const urls = ($("linksIn").value || "")
-    .split("\n").map(s => s.trim()).filter(Boolean);
-
+  const urls = ($("linksIn").value || "").split("\n").map(s => s.trim()).filter(Boolean);
   $("scrapeStatus").textContent = "Fetching…";
   $("scrapeResults").innerHTML = "";
 
@@ -686,484 +577,560 @@ async function scrapeLinks(){
   });
 }
 
-function wireScrape(){
-  $("scrapeBtn").onclick = scrapeLinks;
-}
+// -------- Draft Library --------
+function renderDraftLibrary(){
+  const q = safeTrim($("draftSearch").value).toLowerCase();
+  const f = $("draftFilter").value || "all";
 
-// -----------------------------
-// Democracy Watch RSS picker
-// -----------------------------
-async function loadRss(){
-  const feeds = (settings.rssFeeds || []).filter(f => f.enabled);
-  const limit = Number($("rssLimit").value) || 12;
-
-  $("rssCards").innerHTML = "";
-  const r = await fetch("/api/rss", {
-    method:"POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ feeds, limit })
-  });
-  const data = await r.json();
-
-  const items = (data.items || []).filter(x => x.title && x.link);
-  items.forEach(it => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <div class="muted small">${escapeHtml(it.feed || "")}${it.published ? " • " + escapeHtml(it.published) : ""}</div>
-      <h3 style="margin:8px 0 10px 0">${escapeHtml(it.title)}</h3>
-      <div class="row">
-        <a href="${escapeAttr(it.link)}" target="_blank" rel="noreferrer"><button>Open</button></a>
-        <button class="primary useDw">Use this</button>
-      </div>
-    `;
-    card.querySelector(".useDw").onclick = () => {
-      const cur = getActiveIssue();
-      if(!cur.democracyWatch) cur.democracyWatch = { headline:"", source:"", summaryBullets:[], link:"", imageNote:"" };
-      cur.democracyWatch.headline = it.title;
-      cur.democracyWatch.source = it.feed || "";
-      cur.democracyWatch.link = it.link;
-      // keep bullets as-is (you add them)
-      persistIssues();
-      renderIssueForm();
-      alert("Filled Democracy Watch headline/source/link in the Issue Builder.");
-      // jump to Issue tab
-      document.querySelector('.tab[data-tab="issue"]').click();
-    };
-    $("rssCards").appendChild(card);
-  });
-
-  if (!items.length) {
-    const div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML = `<div class="muted">No items found. Check feed URLs in Settings.</div>`;
-    $("rssCards").appendChild(div);
-  }
-}
-
-function wireRss(){
-  $("loadRssBtn").onclick = loadRss;
-}
-
-// -----------------------------
-// Bluesky generator
-// -----------------------------
-function renderSkyPackSelect(){
-  const sel = $("skyPack");
-  sel.innerHTML = "";
-  (settings.hashtagPacks || []).forEach((p, i) => {
-    const opt = document.createElement("option");
-    opt.value = String(i);
-    opt.textContent = p.name;
-    sel.appendChild(opt);
-  });
-}
-
-function buildSkyPosts(){
-  const topic = ($("skyTopic").value || "").trim() || "Update from Rage for Democracy + IECCC.";
-  const cta   = ($("skyCta").value || "").trim() || "Get plugged in locally. Show up. Bring a friend.";
-  const count = Math.max(1, Math.min(30, Number($("skyCount").value) || settings.blueskyDefaults.postCount || 10));
-  const maxChars = settings.blueskyDefaults.maxChars || 300;
-
-  const packIdx = Number($("skyPack").value || 0);
-  const pack = (settings.hashtagPacks || [])[packIdx] || {tags:[]};
-  const custom = normalizeTags(($("skyCustomTags").value || "").split(" "));
-  const tags = normalizeTags([...(pack.tags||[]), ...custom]);
-
-  const linkPolicy = $("skyLinkPolicy").value || (settings.blueskyDefaults.linkPolicy || "some");
-  const link = safeLink($("skyLink").value);
-
-  const tagStr = tags.length ? tags.map(t => `#${t}`).join(" ") : "";
-
-  const posts = [];
-  for (let i=0; i<count; i++){
-    let useLink = "";
-    if (link && linkPolicy === "every") useLink = link;
-    if (link && linkPolicy === "some" && (i === 0 || i === count-1)) useLink = link;
-
-    let text = `${topic}\n\n${cta}`;
-    if (useLink) text += `\n\n${useLink}`;
-    if (tagStr) text += `\n\n${tagStr}`;
-
-    if (text.length > maxChars) text = text.slice(0, maxChars-1) + "…";
-    posts.push(text);
-  }
-  return posts;
-}
-
-function renderSkyOut(posts){
-  const wrap = $("skyOut");
+  const wrap = $("draftList");
   wrap.innerHTML = "";
-  posts.forEach((p, i) => {
+
+  const filtered = drafts.filter(d => {
+    if (f !== "all" && d.platform !== f) return false;
+    if (!q) return true;
+    return (d.text||"").toLowerCase().includes(q)
+      || (d.sourceTitle||"").toLowerCase().includes(q)
+      || (d.link||"").toLowerCase().includes(q);
+  });
+
+  if (!filtered.length){
+    wrap.innerHTML = `<div class="item"><div class="muted">No drafts saved yet.</div></div>`;
+    return;
+  }
+
+  filtered.forEach((d) => {
     const div = document.createElement("div");
     div.className = "item";
-    if (p.length > 300) div.classList.add("bad");
     div.innerHTML = `
       <div class="row between">
-        <div class="muted small">Post ${i+1} • ${p.length}/300</div>
-        <button class="copyOne">Copy</button>
+        <div class="meta">
+          <span class="pill">${escapeHtml(d.platform)}</span>
+          <span class="pill">${escapeHtml(TEMPLATES.find(t=>t.id===d.template)?.name || d.template)}</span>
+          <span class="pill">${new Date(d.createdAt).toLocaleDateString()}</span>
+          ${d.platform === "bluesky" ? `<span class="pill">${(d.text||"").length}/300</span>` : ""}
+        </div>
+        <div class="row">
+          <button class="copy">Copy</button>
+          <button class="delete danger">Delete</button>
+        </div>
       </div>
-      <textarea rows="5" class="skyText">${escapeHtml(p)}</textarea>
+      <textarea rows="5" class="t"></textarea>
+      ${d.link ? `<div class="muted small">Link: ${escapeHtml(d.link)}</div>` : ""}
     `;
-    const ta = div.querySelector(".skyText");
-    ta.value = p;
-    div.querySelector(".copyOne").onclick = () => copyToClipboard(ta.value);
+    const ta = div.querySelector(".t");
+    ta.value = d.text || "";
+    ta.oninput = () => {
+      d.text = ta.value;
+      saveJson(LS_DRAFTS, drafts);
+    };
+    div.querySelector(".copy").onclick = () => copyToClipboard(d.text || "");
+    div.querySelector(".delete").onclick = () => {
+      drafts = drafts.filter(x => x.id !== d.id);
+      saveJson(LS_DRAFTS, drafts);
+      renderDraftLibrary();
+    };
     wrap.appendChild(div);
   });
 }
 
-let lastSkyPosts = [];
+// -------- Campaigns --------
+function generateCampaignPack(){
+  const name = safeTrim($("campName").value) || "Campaign";
+  const date = $("campDate").value || "";
+  const time = safeTrim($("campTime").value);
+  const location = safeTrim($("campLocation").value);
+  const link = safeTrim($("campLink").value);
+  const focus = safeTrim($("campFocus").value);
 
-function wireSky(){
-  renderSkyPackSelect();
+  const startDays = Math.max(1, Math.min(21, Number($("campStartDays").value) || 7));
+  const totalDrafts = Math.max(5, Math.min(30, Number($("campDraftCount").value) || 10));
 
-  $("genSkyBtn").onclick = () => {
-    lastSkyPosts = buildSkyPosts();
-    renderSkyOut(lastSkyPosts);
+  const doBsky = $("campBsky").checked;
+  const doIg = $("campIg").checked;
+
+  const tags = getSelectedPackTags("camp_pack_");
+
+  const baseContext = {
+    title: `${name}${focus ? ` — ${focus}` : ""}`.trim(),
+    source: "Event",
+    link: link,
+    base: `${name}\n${date ? `Date: ${date}` : ""}\n${time ? `Time: ${time}` : ""}\n${location ? `Location: ${location}` : ""}\n${link ? `RSVP: ${link}` : ""}`.trim(),
+    notes: ""
   };
 
-  $("copySkyAllBtn").onclick = () => {
-    const joined = (lastSkyPosts || []).map((p,i)=>`(${i+1}) ${p}`).join("\n\n---\n\n");
-    copyToClipboard(joined);
-  };
+  const sequence = [
+    "Announcement",
+    "Why this matters",
+    "Logistics (where/when)",
+    "Bring a friend",
+    "Reminder",
+    "Day before",
+    "Day of",
+    "After-action recap + photo ask"
+  ];
 
-  $("sendToLabBtn").onclick = () => {
-    if (!lastSkyPosts.length) return alert("Generate posts first.");
-    $("labText").value = lastSkyPosts.join("\n\n");
-    document.querySelector('.tab[data-tab="lab"]').click();
-  };
+  const posts = [];
+  for (let i=0; i<totalDrafts; i++){
+    const label = sequence[i % sequence.length];
+    const templateId = (i % 3 === 0) ? "local_event" : (i % 3 === 1 ? "cta_now" : "rally");
+
+    if (doBsky){
+      const text = buildDraftText({
+        platform: "bluesky",
+        templateId,
+        tone: "urgent",
+        context: { ...baseContext, title: `${label}: ${baseContext.title}` },
+        tags,
+        linkPolicy: "some",
+        linkOverride: link,
+        index: i,
+        total: totalDrafts
+      });
+      posts.push({ platform:"bluesky", text, template: templateId, tone:"urgent" });
+    }
+
+    if (doIg){
+      const text = buildDraftText({
+        platform: "instagram",
+        templateId,
+        tone: "hopeful",
+        context: { ...baseContext, title: `${label}: ${baseContext.title}` },
+        tags,
+        linkPolicy: "none",
+        linkOverride: link,
+        index: i,
+        total: totalDrafts
+      });
+      posts.push({ platform:"instagram", text, template: templateId, tone:"hopeful" });
+    }
+  }
+
+  lastCampaignDrafts = posts;
+  renderCampaignOutput();
 }
 
-// -----------------------------
-// Hashtag Lab
-// -----------------------------
-function renderLab(){
-  // rank
+function renderCampaignOutput(){
+  const wrap = $("campaignOutput");
+  wrap.innerHTML = "";
+
+  if (!lastCampaignDrafts.length){
+    wrap.innerHTML = `<div class="item"><div class="muted">Generate a campaign pack to see drafts here.</div></div>`;
+    return;
+  }
+
+  lastCampaignDrafts.forEach((p, idx) => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="row between">
+        <div class="meta">
+          <span class="pill">${escapeHtml(p.platform)}</span>
+          <span class="pill">${escapeHtml(TEMPLATES.find(t=>t.id===p.template)?.name || p.template)}</span>
+          ${p.platform==="bluesky" ? `<span class="pill">${p.text.length}/300</span>` : ""}
+        </div>
+        <div class="row">
+          <button class="copyOne">Copy</button>
+          <button class="saveOne primary">Save</button>
+        </div>
+      </div>
+      <textarea rows="5" class="t"></textarea>
+    `;
+    const ta = div.querySelector(".t");
+    ta.value = p.text;
+    ta.oninput = () => { p.text = ta.value; };
+
+    div.querySelector(".copyOne").onclick = () => copyToClipboard(p.text);
+    div.querySelector(".saveOne").onclick = () => {
+      drafts.unshift({
+        id: `dft_${nowMs()}_${Math.random().toString(16).slice(2)}`,
+        platform: p.platform,
+        template: p.template,
+        tone: p.tone,
+        text: p.text,
+        hashtags: [],
+        link: "",
+        sourceTitle: "",
+        sourceLink: "",
+        createdAt: nowMs()
+      });
+      saveJson(LS_DRAFTS, drafts);
+      renderDraftLibrary();
+      alert("Saved to Draft Library.");
+    };
+
+    wrap.appendChild(div);
+  });
+}
+
+function copyCampaignAll(){
+  if (!lastCampaignDrafts.length) return;
+  const joined = lastCampaignDrafts.map((p,i)=>`(${i+1}) [${p.platform}] ${p.text}`).join("\n\n---\n\n");
+  copyToClipboard(joined);
+}
+
+function saveCampaign(){
+  const name = safeTrim($("campName").value) || "Campaign";
+  const obj = {
+    id: `cmp_${nowMs()}_${Math.random().toString(16).slice(2)}`,
+    name,
+    eventDate: $("campDate").value || "",
+    time: safeTrim($("campTime").value),
+    location: safeTrim($("campLocation").value),
+    rsvp: safeTrim($("campLink").value),
+    focus: safeTrim($("campFocus").value),
+    createdAt: nowMs(),
+    posts: lastCampaignDrafts
+  };
+  campaigns.unshift(obj);
+  saveJson(LS_CAMPAIGNS, campaigns);
+  renderCampaignList();
+  alert("Campaign saved.");
+}
+
+function renderCampaignList(){
+  const wrap = $("campaignList");
+  wrap.innerHTML = "";
+  if (!campaigns.length){
+    wrap.innerHTML = `<div class="item"><div class="muted">No saved campaigns yet.</div></div>`;
+    return;
+  }
+
+  campaigns.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="row between">
+        <div>
+          <b>${escapeHtml(c.name)}</b>
+          <div class="muted small">${c.eventDate || ""} ${c.time || ""} • ${escapeHtml(c.location || "")}</div>
+        </div>
+        <div class="row">
+          <button class="load primary">Load</button>
+          <button class="del danger">Delete</button>
+        </div>
+      </div>
+    `;
+    div.querySelector(".load").onclick = () => {
+      lastCampaignDrafts = c.posts || [];
+      renderCampaignOutput();
+      document.querySelector('.tab[data-tab="campaigns"]').click();
+    };
+    div.querySelector(".del").onclick = () => {
+      campaigns = campaigns.filter(x => x.id !== c.id);
+      saveJson(LS_CAMPAIGNS, campaigns);
+      renderCampaignList();
+    };
+    wrap.appendChild(div);
+  });
+}
+
+// -------- Growth Lab --------
+function addMetric(){
+  const text = $("metricText").value || "";
+  const likes = Number($("metricLikes").value) || 0;
+  const reposts = Number($("metricReposts").value) || 0;
+  const replies = Number($("metricReplies").value) || 0;
+  const platform = $("metricPlatform").value || "bluesky";
+  const template = $("metricTemplate").value || "";
+
+  const entry = {
+    id: `m_${nowMs()}_${Math.random().toString(16).slice(2)}`,
+    ts: nowMs(),
+    platform,
+    template,
+    text,
+    likes, reposts, replies,
+    tags: extractHashtags(text),
+  };
+  entry.score = scoreEntry(entry);
+
+  metrics.unshift(entry);
+  saveJson(LS_METRICS, metrics);
+
+  $("metricText").value = "";
+  $("metricLikes").value = 0;
+  $("metricReposts").value = 0;
+  $("metricReplies").value = 0;
+
+  renderMetrics();
+}
+
+function renderMetrics(){
+  // top tags
   const byTag = {};
-  lab.forEach(e => {
-    const s = scoreEntry(e);
+  metrics.forEach(e => {
     (e.tags || []).forEach(t => {
       if (!byTag[t]) byTag[t] = { tag:t, total:0, count:0 };
-      byTag[t].total += s;
+      byTag[t].total += e.score || 0;
       byTag[t].count += 1;
     });
   });
 
-  const ranked = Object.values(byTag)
+  const rankedTags = Object.values(byTag)
     .map(x => ({...x, avg: x.total / x.count}))
     .sort((a,b)=>b.avg-a.avg);
 
-  $("tagRank").innerHTML = "";
-  ranked.slice(0, 30).forEach(r => {
+  const topTags = $("topTags");
+  topTags.innerHTML = "";
+  rankedTags.slice(0, 25).forEach(r => {
     const div = document.createElement("div");
     div.className = "item";
-    div.innerHTML = `<b>${escapeHtml(r.tag)}</b><div class="muted small">avg score ${r.avg.toFixed(2)} • samples ${r.count}</div>`;
-    $("tagRank").appendChild(div);
+    div.innerHTML = `<b>${escapeHtml(r.tag)}</b><div class="muted small">avg ${r.avg.toFixed(2)} • samples ${r.count}</div>`;
+    topTags.appendChild(div);
   });
-  if (!ranked.length) {
+  if (!rankedTags.length){
+    topTags.innerHTML = `<div class="item"><div class="muted">No data yet.</div></div>`;
+  }
+
+  // top templates
+  const byTpl = {};
+  metrics.forEach(e => {
+    const k = e.template || "(unlabeled)";
+    if (!byTpl[k]) byTpl[k] = { tpl:k, total:0, count:0 };
+    byTpl[k].total += e.score || 0;
+    byTpl[k].count += 1;
+  });
+
+  const rankedTpl = Object.values(byTpl)
+    .map(x => ({...x, avg: x.total / x.count}))
+    .sort((a,b)=>b.avg-a.avg);
+
+  const topTpl = $("topTemplates");
+  topTpl.innerHTML = "";
+  rankedTpl.slice(0, 15).forEach(r => {
+    const label = TEMPLATES.find(t=>t.id===r.tpl)?.name || r.tpl;
     const div = document.createElement("div");
     div.className = "item";
-    div.innerHTML = `<div class="muted">No data yet. Add a post + metrics.</div>`;
-    $("tagRank").appendChild(div);
+    div.innerHTML = `<b>${escapeHtml(label)}</b><div class="muted small">avg ${r.avg.toFixed(2)} • samples ${r.count}</div>`;
+    topTpl.appendChild(div);
+  });
+  if (!rankedTpl.length){
+    topTpl.innerHTML = `<div class="item"><div class="muted">No data yet.</div></div>`;
   }
 
   // entries
-  $("labEntries").innerHTML = "";
-  lab.slice().reverse().forEach(e => {
+  const list = $("metricEntries");
+  list.innerHTML = "";
+  metrics.slice(0, 40).forEach(e => {
     const div = document.createElement("div");
     div.className = "item";
     div.innerHTML = `
-      <div class="muted small">${new Date(e.ts).toLocaleString()} • score ${scoreEntry(e)}</div>
-      <div class="small">${escapeHtml((e.tags||[]).join(" "))}</div>
-    `;
-    $("labEntries").appendChild(div);
-  });
-}
-
-function wireLab(){
-  $("labAddBtn").onclick = () => {
-    const text = $("labText").value || "";
-    const tags = hashtagExtract(text);
-    const entry = {
-      ts: Date.now(),
-      likes: Number($("labLikes").value) || 0,
-      reposts: Number($("labReposts").value) || 0,
-      replies: Number($("labReplies").value) || 0,
-      tags
-    };
-    lab.push(entry);
-    saveJson(LS_LAB, lab);
-    renderLab();
-
-    $("labLikes").value = 0;
-    $("labReposts").value = 0;
-    $("labReplies").value = 0;
-    $("labText").value = "";
-  };
-
-  $("labClearBtn").onclick = () => {
-    if (!confirm("Clear all hashtag lab entries?")) return;
-    lab = [];
-    saveJson(LS_LAB, lab);
-    renderLab();
-  };
-
-  renderLab();
-}
-
-// -----------------------------
-// AI JSON paste apply
-// -----------------------------
-function wireAiPaste(){
-  $("applyAiBtn").onclick = () => {
-    const raw = $("aiPaste").value.trim();
-    if (!raw) return alert("Paste JSON first.");
-    let obj;
-    try { obj = JSON.parse(raw); }
-    catch { return alert("Invalid JSON."); }
-
-    const cur = getActiveIssue();
-
-    // Apply known fields only (keeps your storage stable)
-    if (typeof obj.title === "string") cur.title = obj.title;
-    if (typeof obj.opening === "string") cur.opening = obj.opening;
-    if (Array.isArray(obj.important)) cur.important = obj.important.map(String);
-    if (Array.isArray(obj.schedule)) cur.schedule = obj.schedule;
-    if (typeof obj.communityCorner === "string") cur.communityCorner = obj.communityCorner;
-
-    if (obj.democracyWatch) {
-      cur.democracyWatch = cur.democracyWatch || { headline:"", source:"", summaryBullets:[], link:"", imageNote:"" };
-      if (typeof obj.democracyWatch.headline === "string") cur.democracyWatch.headline = obj.democracyWatch.headline;
-      if (typeof obj.democracyWatch.source === "string") cur.democracyWatch.source = obj.democracyWatch.source;
-      if (typeof obj.democracyWatch.link === "string") cur.democracyWatch.link = obj.democracyWatch.link;
-      if (Array.isArray(obj.democracyWatch.summaryBullets)) cur.democracyWatch.summaryBullets = obj.democracyWatch.summaryBullets.map(String);
-      if (typeof obj.democracyWatch.imageNote === "string") cur.democracyWatch.imageNote = obj.democracyWatch.imageNote;
-    }
-
-    if (Array.isArray(obj.callToAction)) cur.callToAction = obj.callToAction;
-
-    if (obj.meta?.templateName) cur.meta.templateName = obj.meta.templateName;
-
-    persistIssues();
-    renderIssueSelect();
-    renderIssueForm();
-    alert("Applied JSON to the active issue.");
-    $("aiPaste").value = "";
-  };
-}
-function buildSectionBlocks(issue, mode){
-  const social = issue.social || settings.social;
-  const dw = issue.democracyWatch || {};
-  const blocks = [];
-
-  const fmtDeadline = (cta) => {
-    if (cta.deadlineDate) return prettyDate(cta.deadlineDate);
-    if (cta.deadline) return cta.deadline; // existing text field (e.g., "Tomorrow")
-    return "";
-  };
-
-  if (mode === "substack") {
-    // Title + Opening
-    blocks.push({
-      key: "title_opening",
-      label: "Title + Opening",
-      text: [
-        (issue.title || "Title"),
-        "",
-        (issue.opening || "This is the opening statement.").trim()
-      ].join("\n")
-    });
-
-    // Important
-    blocks.push({
-      key: "important",
-      label: "⭐ What’s Important",
-      text: [
-        "⭐ What’s Important (Read First)",
-        "",
-        ...(issue.important?.length
-          ? issue.important.filter(x=>String(x||"").trim()).map((x,i)=>`${i+1}) ${String(x).trim()}`)
-          : ["(Add key points here.)"])
-      ].join("\n")
-    });
-
-    // Schedule
-    const schedLines = ["📅 Upcoming Schedule", ""];
-    if (issue.schedule?.length) {
-      issue.schedule.forEach(ev => {
-        const d = ev.date ? prettyDate(ev.date) : "Date TBD";
-        schedLines.push(`${d} — ${ev.name || "Event"}`);
-        if (ev.location) schedLines.push(`📍 ${ev.location}`);
-        if (ev.time)     schedLines.push(`🕔 ${ev.time}`);
-        if (ev.focus)    schedLines.push(`🎯 ${ev.focus}`);
-        if (ev.link)     schedLines.push(`👉 ${ev.link}`);
-        schedLines.push(""); // blank line between events
-      });
-    } else {
-      schedLines.push("(Add events here.)");
-    }
-    blocks.push({ key: "schedule", label: "📅 Upcoming Schedule", text: schedLines.join("\n").trim() });
-
-    // Democracy Watch
-    const dwLines = ["📰 Democracy Watch", ""];
-    if (dw.headline || dw.link) {
-      const src = dw.source ? ` (${dw.source})` : "";
-      dwLines.push(`${dw.headline || "Headline"}${src}`);
-      if (dw.link) dwLines.push(`👉 ${dw.link}`);
-      if (dw.summaryBullets?.length) {
-        dwLines.push("");
-        dw.summaryBullets.forEach(b => dwLines.push(`• ${b}`));
-      }
-      if (dw.imageNote) {
-        dwLines.push("");
-        dwLines.push(`(Image note: ${dw.imageNote})`);
-      }
-    } else {
-      dwLines.push("(Pick a headline in Democracy Watch tab.)");
-    }
-    blocks.push({ key: "dw", label: "📰 Democracy Watch", text: dwLines.join("\n") });
-
-    // Call to Action
-    const ctaLines = ["📢 Call to Action", ""];
-    if (issue.callToAction?.length) {
-      issue.callToAction.forEach(cta => {
-        const dead = fmtDeadline(cta);
-        const head = cta.action ? `${cta.action}:` : "Action:";
-        ctaLines.push(`• ${head} ${(cta.text || "").trim()}`.trim());
-        if (cta.link) ctaLines.push(`👉 ${cta.link}`);
-        if (dead) ctaLines.push(`Deadline: ${dead}`);
-        ctaLines.push("");
-      });
-    } else {
-      ctaLines.push("(Add 1–3 actions people can do today.)");
-    }
-    blocks.push({ key: "cta", label: "📢 Call to Action", text: ctaLines.join("\n").trim() });
-
-    // Community Corner
-    blocks.push({
-      key: "community",
-      label: "💬 Community Corner",
-      text: [
-        "💬 Community Corner",
-        "",
-        (issue.communityCorner || "(Add community highlight / photo notes here.)").trim(),
-        "",
-        "Send photos/clips/art/reflections to ragefordemocracy@gmail.com — we’ll highlight community submissions in the next issue."
-      ].join("\n")
-    });
-
-    // Social
-    blocks.push({
-      key: "social",
-      label: "📲 Stay Connected",
-      text: [
-        "📲 Stay Connected",
-        "",
-        `📸 Instagram → ${social.instagram || ""}`,
-        `😁 Facebook → ${social.facebook || ""}`,
-        `🔵 BlueSky → ${social.bluesky || ""}`,
-        `📹 TikTok → ${social.tiktok || ""}`,
-        social.discord ? `💬 Discord → ${social.discord}` : ""
-      ].filter(Boolean).join("\n")
-    });
-
-    return blocks;
-  }
-
-  // Markdown mode (kept for other uses)
-  blocks.push({
-    key: "markdown_full",
-    label: "Full Markdown",
-    text: buildMarkdown(issue)
-  });
-  return blocks;
-}
-
-function renderSectionOutputs(){
-  const mode = $("outputMode")?.value || "substack";
-  const blocks = buildSectionBlocks(getActiveIssue(), mode);
-
-  const wrap = $("sectionOutputs");
-  wrap.innerHTML = "";
-
-  blocks.forEach(b => {
-    const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
-      <div class="row between">
-        <b>${escapeHtml(b.label)}</b>
-        <button class="copySectionBtn">Copy</button>
+      <div class="meta">
+        <span class="pill">${escapeHtml(e.platform)}</span>
+        <span class="pill">score ${e.score}</span>
+        <span class="pill">${new Date(e.ts).toLocaleString()}</span>
       </div>
-      <textarea rows="8" class="sectionText"></textarea>
+      <div class="muted small">${escapeHtml((e.tags||[]).join(" "))}</div>
     `;
-    const ta = div.querySelector(".sectionText");
-    ta.value = b.text;
-    div.querySelector(".copySectionBtn").onclick = () => copyToClipboard(ta.value);
-    wrap.appendChild(div);
+    list.appendChild(div);
   });
-
-  // Store for Copy All
-  window.__lastSectionBlocks = blocks;
+  if (!metrics.length){
+    list.innerHTML = `<div class="item"><div class="muted">No metric entries yet.</div></div>`;
+  }
 }
 
-function wireSectionOutputs(){
-  $("genSectionsBtn").onclick = renderSectionOutputs;
+// -------- Settings --------
+function renderSettings(){
+  $("rssJson").value = JSON.stringify(settings.rssFeeds, null, 2);
+  $("packsJson").value = JSON.stringify(settings.hashtagPacks, null, 2);
+  $("ctasText").value = (settings.boiler.ctas || []).join("\n");
+  $("closersText").value = (settings.boiler.closers || []).join("\n");
+}
 
-  $("copyAllSectionsBtn").onclick = () => {
-    const blocks = window.__lastSectionBlocks || buildSectionBlocks(getActiveIssue(), $("outputMode").value);
-    const joined = blocks.map(b => b.text).join("\n\n---\n\n");
-    copyToClipboard(joined);
+function saveSettingsRss(){
+  try {
+    settings.rssFeeds = JSON.parse($("rssJson").value);
+    saveJson(LS_SETTINGS, settings);
+    alert("Saved RSS feeds.");
+  } catch {
+    alert("Invalid RSS JSON.");
+  }
+}
+
+function saveSettingsPacks(){
+  try {
+    settings.hashtagPacks = JSON.parse($("packsJson").value);
+    saveJson(LS_SETTINGS, settings);
+    renderPackChecks();
+    alert("Saved hashtag packs.");
+  } catch {
+    alert("Invalid packs JSON.");
+  }
+}
+
+function saveBoiler(){
+  settings.boiler.ctas = ($("ctasText").value || "").split("\n").map(s=>s.trim()).filter(Boolean);
+  settings.boiler.closers = ($("closersText").value || "").split("\n").map(s=>s.trim()).filter(Boolean);
+  saveJson(LS_SETTINGS, settings);
+  alert("Saved boilerplate.");
+}
+
+function resetRss(){
+  settings.rssFeeds = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.rssFeeds));
+  saveJson(LS_SETTINGS, settings);
+  renderSettings();
+}
+function resetPacks(){
+  settings.hashtagPacks = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.hashtagPacks));
+  saveJson(LS_SETTINGS, settings);
+  renderPackChecks();
+  renderSettings();
+}
+function resetBoiler(){
+  settings.boiler = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.boiler));
+  saveJson(LS_SETTINGS, settings);
+  renderSettings();
+}
+
+// -------- Export/Import all data --------
+function exportAll(){
+  const blob = new Blob([JSON.stringify({ settings, signals, drafts, campaigns, metrics }, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `social-cockpit-export-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importAll(){
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json";
+  input.onchange = async () => {
+    const f = input.files?.[0];
+    if (!f) return;
+    const txt = await f.text();
+    try {
+      const obj = JSON.parse(txt);
+      settings = obj.settings || settings;
+      signals = obj.signals || [];
+      drafts = obj.drafts || [];
+      campaigns = obj.campaigns || [];
+      metrics = obj.metrics || [];
+
+      saveJson(LS_SETTINGS, settings);
+      saveJson(LS_SIGNALS, signals);
+      saveJson(LS_DRAFTS, drafts);
+      saveJson(LS_CAMPAIGNS, campaigns);
+      saveJson(LS_METRICS, metrics);
+
+      bootRenders();
+      alert("Imported.");
+    } catch {
+      alert("Invalid file.");
+    }
+  };
+  input.click();
+}
+
+function resetAllLocal(){
+  if (!confirm("This will erase local data for this app in your browser. Continue?")) return;
+  localStorage.removeItem(LS_SETTINGS);
+  localStorage.removeItem(LS_SIGNALS);
+  localStorage.removeItem(LS_DRAFTS);
+  localStorage.removeItem(LS_CAMPAIGNS);
+  localStorage.removeItem(LS_METRICS);
+  location.reload();
+}
+
+// -------- Boot wiring --------
+function wire(){
+  // tabs
+  initTabs();
+
+  // Desk
+  $("loadRssBtn").onclick = loadRss;
+  $("signalSearch").oninput = renderSignals;
+  $("clearSignalsBtn").onclick = () => {
+    if (!confirm("Clear all saved signals?")) return;
+    signals = [];
+    saveJson(LS_SIGNALS, signals);
+    renderSignals();
+    renderStudioSignalSelect();
   };
 
-  $("outputMode").onchange = () => renderSectionOutputs();
+  // Studio
+  $("studioSourceMode").onchange = () => { syncStudioSourceMode(); };
+  $("studioPlatform").onchange = () => { syncPlatformOptions(); };
+  $("studioManualText").oninput = updateStudioPills;
+  $("studioSignalSelect").onchange = updateStudioPills;
+  $("genDraftsBtn").onclick = () => { generateDrafts(); updateStudioPills(); };
+  $("copyAllDraftsBtn").onclick = copyAllStudioDrafts;
+  $("saveDraftsBtn").onclick = saveStudioDraftsToLibrary;
+
+  // packs checks update pills on click
+  document.addEventListener("change", (e) => {
+    if (e.target && String(e.target.id || "").startsWith("pack_")) updateStudioPills();
+  });
+
+  // Link tools
+  $("scrapeBtn").onclick = scrapeLinks;
+
+  // Campaigns
+  $("genCampaignBtn").onclick = generateCampaignPack;
+  $("copyCampaignBtn").onclick = copyCampaignAll;
+  $("saveCampaignBtn").onclick = saveCampaign;
+  $("clearCampaignsBtn").onclick = () => {
+    if (!confirm("Clear all saved campaigns?")) return;
+    campaigns = [];
+    saveJson(LS_CAMPAIGNS, campaigns);
+    renderCampaignList();
+  };
+
+  // Library
+  $("draftSearch").oninput = renderDraftLibrary;
+  $("draftFilter").onchange = renderDraftLibrary;
+  $("clearDraftsBtn").onclick = () => {
+    if (!confirm("Clear all drafts?")) return;
+    drafts = [];
+    saveJson(LS_DRAFTS, drafts);
+    renderDraftLibrary();
+  };
+
+  // Growth
+  $("addMetricBtn").onclick = addMetric;
+  $("clearMetricsBtn").onclick = () => {
+    if (!confirm("Clear all metric entries?")) return;
+    metrics = [];
+    saveJson(LS_METRICS, metrics);
+    renderMetrics();
+  };
+
+  // Settings
+  $("saveRssBtn").onclick = saveSettingsRss;
+  $("resetRssBtn").onclick = resetRss;
+  $("savePacksBtn").onclick = saveSettingsPacks;
+  $("resetPacksBtn").onclick = resetPacks;
+  $("saveBoilerBtn").onclick = saveBoiler;
+  $("resetBoilerBtn").onclick = resetBoiler;
+
+  // Top buttons
+  $("exportAllBtn").onclick = exportAll;
+  $("importAllBtn").onclick = importAll;
+  $("resetBtn").onclick = resetAllLocal;
 }
 
-
-// -----------------------------
-// Wire top buttons
-// -----------------------------
-function wireTopButtons(){
-  $("newIssueBtn").onclick = newIssue;
-  $("dupIssueBtn").onclick = duplicateIssue;
-  $("exportIssueBtn").onclick = exportIssue;
-  $("importIssueBtn").onclick = importIssue;
-}
-
-// -----------------------------
-// Small HTML escaping helpers
-// -----------------------------
-function escapeHtml(str){
-  return String(str ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-function escapeAttr(str){ return escapeHtml(str).replaceAll("\n"," "); }
-
-// -----------------------------
-// Boot
-// -----------------------------
-function init(){
-  initTabs();
-  wireTopButtons();
-  renderIssueSelect();
-  renderTemplateSelect();
-  renderIssueForm();
-  wireMarkdown();
-  wireScrape();
-  wireRss();
-  wireSky();
-  wireLab();
-  wireAiPaste();
+function bootRenders(){
+  renderTemplateSelects();
+  renderPackChecks();
   renderSettings();
 
-  // Settings may affect dropdowns
-  $("issueSelect").dispatchEvent(new Event("change"));
+  renderSignals();
+  renderStudioSignalSelect();
+  syncStudioSourceMode();
+  syncPlatformOptions();
+  updateStudioPills();
+
+  renderDraftLibrary();
+  renderCampaignList();
+  renderMetrics();
+  renderCampaignOutput();
+  renderDraftOutput();
 }
 
-wireSectionOutputs();
-renderSectionOutputs(); // auto-generate on load
+function init(){
+  wire();
+  bootRenders();
+}
 
 init();

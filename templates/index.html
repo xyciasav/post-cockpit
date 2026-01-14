@@ -4,163 +4,41 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-  <title>Post Cockpit</title>
+  <title>Social Cockpit</title>
   <link rel="stylesheet" href="{{ request.script_root }}/static/style.css" />
 </head>
 <body>
   <header class="wrap">
     <div class="topbar">
       <div>
-        <h1>Post Cockpit</h1>
-        <div class="muted">Substack + Bluesky builder (no login). Autosaves in your browser.</div>
+        <h1>Social Cockpit</h1>
+        <div class="muted">Bluesky-first social helper • Save signals → generate drafts → copy/queue → track what works</div>
       </div>
       <div class="topbar-actions">
-        <button id="newIssueBtn">New issue</button>
-        <button id="dupIssueBtn">Duplicate</button>
-        <button id="exportIssueBtn">Export issue</button>
-        <button id="importIssueBtn">Import issue</button>
+        <button id="exportAllBtn">Export</button>
+        <button id="importAllBtn">Import</button>
+        <button id="resetBtn" class="danger">Reset (local)</button>
       </div>
     </div>
   </header>
 
   <main class="wrap">
     <nav class="tabs">
-      <button class="tab active" data-tab="issue">Issue Builder</button>
-      <button class="tab" data-tab="watch">Democracy Watch</button>
-      <button class="tab" data-tab="sky">Bluesky Pack</button>
-      <button class="tab" data-tab="lab">Hashtag Lab</button>
+      <button class="tab active" data-tab="desk">Feed Desk</button>
+      <button class="tab" data-tab="studio">Post Studio</button>
+      <button class="tab" data-tab="campaigns">Campaigns</button>
+      <button class="tab" data-tab="library">Draft Library</button>
+      <button class="tab" data-tab="growth">Growth Lab</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
 
-    <!-- Issue Builder -->
-    <section id="issue" class="panel active">
-<div class="card">
-  <div class="row between">
-    <h2>Copy-ready sections</h2>
-    <div class="row">
-      <label class="muted small" style="margin:0;">Format</label>
-      <select id="outputMode" style="max-width:190px;">
-        <option value="substack" selected>Substack (plain)</option>
-        <option value="markdown">Markdown</option>
-      </select>
-      <button id="genSectionsBtn" class="primary">Generate</button>
-      <button id="copyAllSectionsBtn">Copy all</button>
-    </div>
-  </div>
-
-  <div class="muted small">
-    Substack (plain) avoids markdown symbols (##, **). Use Copy on any section and paste it where you want.
-  </div>
-
-  <div id="sectionOutputs" class="stack" style="margin-top:10px;"></div>
-</div>
-
-
-    <ol class="qs">
-      <li><b>Pick a Democracy Watch headline</b> (Democracy Watch tab → “Use this”).</li>
-      <li><b>Add 1–3 Calls to Action</b> (CTA section).</li>
-      <li><b>Add events</b> (Upcoming Schedule).</li>
-      <li><b>Generate Markdown</b> (button) → paste into Substack.</li>
-      <li><b>Generate Bluesky Pack</b> (Bluesky tab) → copy all.</li>
-    </ol>
-  </div>
-
-      <div class="grid2">
-        <div class="card">
-          <div class="row between">
-            <h2>Issue</h2>
-            <select id="issueSelect"></select>
-          </div>
-
-          <label>Template</label>
-          <select id="templateSelect"></select>
-
-          <label>Title</label>
-          <input id="title" placeholder="Weekly update — ..." />
-
-          <label>Opening</label>
-          <textarea id="opening" rows="8" placeholder="Your voice. Markdown ok."></textarea>
-
-          <div class="row between">
-            <h3>⭐ What’s Important</h3>
-            <button id="addImportantBtn">+ Add</button>
-          </div>
-          <div id="importantList" class="stack"></div>
-
-          <div class="row between">
-            <h3>📅 Upcoming Schedule</h3>
-            <button id="addScheduleBtn">+ Add event</button>
-          </div>
-          <div id="scheduleList" class="stack"></div>
-        </div>
-
-        <div class="card">
-          <h2>Sections</h2>
-
-          <h3>📰 Democracy Watch (selected)</h3>
-          <label>Headline</label>
-          <input id="dwHeadline" placeholder="Headline…" />
-          <label>Source</label>
-          <input id="dwSource" placeholder="Source…" />
-          <label>Link</label>
-          <input id="dwLink" placeholder="https://..." />
-          <label>Summary bullets (one per line)</label>
-          <textarea id="dwBullets" rows="5" placeholder="- bullet&#10;- bullet"></textarea>
-          <label>Image note (optional)</label>
-          <input id="dwImageNote" placeholder="e.g., paste image URL or describe the image" />
-
-          <div class="row between">
-            <h3>📢 Call to Action</h3>
-            <button id="addCtaBtn">+ Add CTA</button>
-          </div>
-          <div id="ctaList" class="stack"></div>
-
-          <h3>💬 Community Corner</h3>
-          <textarea id="communityCorner" rows="6" placeholder="Text + image placeholders. Markdown ok."></textarea>
-
-          <h3>Paste AI JSON (optional)</h3>
-          <div class="muted small">Paste a JSON object matching the issue schema → it will populate fields.</div>
-          <textarea id="aiPaste" rows="6" placeholder='{"title":"...","opening":"...","important":[...],"...": "..."}'></textarea>
-          <div class="row">
-            <button id="applyAiBtn">Apply JSON to this issue</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid2">
-        <div class="card">
-          <div class="row between">
-            <h2>Substack Markdown Output</h2>
-            <div class="row">
-              <button id="genMarkdownBtn" class="primary">Generate</button>
-              <button id="copyMarkdownBtn">Copy</button>
-            </div>
-          </div>
-          <textarea id="markdownOut" rows="20" placeholder="Generate → copy into Substack…"></textarea>
-        </div>
-
-        <div class="card">
-          <div class="row between">
-            <h2>Link tools</h2>
-            <div class="row">
-              <button id="scrapeBtn">Fetch titles</button>
-            </div>
-          </div>
-          <label>Links (one per line)</label>
-          <textarea id="linksIn" rows="8" placeholder="https://mobilize.us/..."></textarea>
-          <div id="scrapeStatus" class="muted small"></div>
-          <div id="scrapeResults" class="stack"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Democracy Watch -->
-    <section id="watch" class="panel">
+    <!-- Feed Desk -->
+    <section id="desk" class="panel active">
       <div class="card">
         <div class="row between">
           <div>
-            <h2>Democracy Watch Picker</h2>
-            <div class="muted small">Pulls headlines from RSS feeds you enable in Settings. Click “Use this”.</div>
+            <h2>Feed Desk</h2>
+            <div class="muted small">Pull headlines from RSS feeds. Save “signals” you want to post about.</div>
           </div>
           <div class="row">
             <input id="rssLimit" type="number" min="3" max="30" value="12" style="max-width:110px" />
@@ -169,100 +47,306 @@
         </div>
       </div>
 
-      <div id="rssCards" class="grid3"></div>
-    </section>
-
-    <!-- Bluesky -->
-    <section id="sky" class="panel">
       <div class="grid2">
         <div class="card">
-          <h2>Bluesky Pack</h2>
+          <div class="row between">
+            <h3>Headlines</h3>
+            <div class="muted small">Click “Save Signal”.</div>
+          </div>
+          <div id="rssCards" class="stack"></div>
+        </div>
 
-          <label>Topic / main message</label>
-          <textarea id="skyTopic" rows="6" placeholder="What are we saying this week?"></textarea>
-
-          <label>Call to action line</label>
-          <input id="skyCta" placeholder="Show up. Bring a friend. Share this." />
-
-          <div class="grid2">
-            <div>
-              <label>Hashtag pack</label>
-              <select id="skyPack"></select>
+        <div class="card">
+          <div class="row between">
+            <h3>Signal Desk</h3>
+            <div class="row">
+              <input id="signalSearch" placeholder="Search saved signals…" style="max-width:260px" />
+              <button id="clearSignalsBtn">Clear signals</button>
             </div>
-            <div>
-              <label>Post count</label>
-              <input id="skyCount" type="number" min="1" max="30" value="10" />
+          </div>
+          <div class="muted small">Saved items become fuel for Post Studio and Campaigns.</div>
+          <div id="signalList" class="stack" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Post Studio -->
+    <section id="studio" class="panel">
+      <div class="card">
+        <div class="row between">
+          <div>
+            <h2>Post Studio</h2>
+            <div class="muted small">Pick a saved signal (or write a manual idea) → generate Bluesky and Instagram drafts.</div>
+          </div>
+          <div id="studioPills" class="pills"></div>
+        </div>
+
+        <div class="grid2" style="margin-top:12px;">
+          <div>
+            <label>Source</label>
+            <select id="studioSourceMode">
+              <option value="signal" selected>Saved Signal</option>
+              <option value="manual">Manual Idea</option>
+            </select>
+
+            <div id="studioSignalPick">
+              <label>Choose signal</label>
+              <select id="studioSignalSelect"></select>
+              <label>Optional notes (for you)</label>
+              <textarea id="studioNotes" rows="3" placeholder="Why it matters / local angle / what to emphasize…"></textarea>
+            </div>
+
+            <div id="studioManualPick" style="display:none;">
+              <label>Manual idea</label>
+              <textarea id="studioManualText" rows="6" placeholder="Paste your idea, notes, or a link…"></textarea>
+            </div>
+
+            <div class="grid2">
+              <div>
+                <label>Template</label>
+                <select id="studioTemplate"></select>
+              </div>
+              <div>
+                <label>Tone</label>
+                <select id="studioTone">
+                  <option value="plain">Plain</option>
+                  <option value="urgent" selected>Urgent</option>
+                  <option value="angry">Angry</option>
+                  <option value="hopeful">Hopeful</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid2">
+              <div>
+                <label>Platform</label>
+                <select id="studioPlatform">
+                  <option value="bluesky" selected>Bluesky (300 chars)</option>
+                  <option value="instagram">Instagram caption</option>
+                </select>
+              </div>
+              <div>
+                <label>Draft count</label>
+                <input id="studioCount" type="number" min="1" max="30" value="10" />
+              </div>
+            </div>
+
+            <label>Hashtag pack(s)</label>
+            <div id="packChecks" class="checks"></div>
+
+            <div id="bskyOptions" class="card inner">
+              <h3 style="margin-top:0;">Bluesky options</h3>
+              <div class="grid2">
+                <div>
+                  <label>Link policy</label>
+                  <select id="studioLinkPolicy">
+                    <option value="none">No links</option>
+                    <option value="some" selected>Only draft 1 + last</option>
+                    <option value="every">Every draft</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Optional link override</label>
+                  <input id="studioLink" placeholder="https://mobilize.us/..." />
+                </div>
+              </div>
+            </div>
+
+            <div id="igOptions" class="card inner" style="display:none;">
+              <h3 style="margin-top:0;">Instagram options</h3>
+              <label>Include hashtags as</label>
+              <select id="igTagStyle">
+                <option value="end" selected>At the end</option>
+                <option value="comment">“First comment” block</option>
+              </select>
+              <label>Optional CTA line</label>
+              <input id="igCTA" placeholder="Bring a friend. Share this. RSVP in bio." />
+            </div>
+
+            <div class="row">
+              <button id="genDraftsBtn" class="primary">Generate drafts</button>
+              <button id="copyAllDraftsBtn">Copy all</button>
+              <button id="saveDraftsBtn">Save to Library</button>
             </div>
           </div>
 
-          <label>Custom hashtags (space separated, optional)</label>
-          <input id="skyCustomTags" placeholder="#RageForDemocracyCA #WeThePeople ..." />
+          <div>
+            <div class="card inner">
+              <div class="row between">
+                <h3 style="margin:0;">Draft Output</h3>
+                <div class="muted small">Editable + copyable cards.</div>
+              </div>
+              <div id="draftOutput" class="stack" style="margin-top:10px;"></div>
+            </div>
 
-          <label>Link policy</label>
-          <select id="skyLinkPolicy">
-            <option value="none">No links</option>
-            <option value="some" selected>Only post 1 + last</option>
-            <option value="every">Every post</option>
-          </select>
+            <div class="card inner">
+              <div class="row between">
+                <h3 style="margin:0;">Link tools</h3>
+                <button id="scrapeBtn">Fetch titles</button>
+              </div>
+              <label>Links (one per line)</label>
+              <textarea id="linksIn" rows="5" placeholder="https://..."></textarea>
+              <div id="scrapeStatus" class="muted small"></div>
+              <div id="scrapeResults" class="stack"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-          <label>Optional link to include</label>
-          <input id="skyLink" placeholder="https://mobilize.us/..." />
+    <!-- Campaigns -->
+    <section id="campaigns" class="panel">
+      <div class="grid2">
+        <div class="card">
+          <h2>Campaign Builder</h2>
+          <div class="muted small">Turn one event into a full posting pack (announcement → reminders → day-of → recap).</div>
+
+          <label>Campaign name</label>
+          <input id="campName" placeholder="Costco Bridge Protest" />
+
+          <div class="grid2">
+            <div>
+              <label>Event date</label>
+              <input id="campDate" type="date" />
+            </div>
+            <div>
+              <label>Event time</label>
+              <input id="campTime" placeholder="2:00PM–4:00PM" />
+            </div>
+          </div>
+
+          <label>Location</label>
+          <input id="campLocation" placeholder="Costco Pedestrian Bridge, Brentwood" />
+
+          <label>RSVP link</label>
+          <input id="campLink" placeholder="https://mobilize.us/..." />
+
+          <label>Focus message</label>
+          <input id="campFocus" placeholder="Remove the Regime" />
+
+          <div class="grid2">
+            <div>
+              <label>Countdown start (days before)</label>
+              <input id="campStartDays" type="number" min="1" max="21" value="7" />
+            </div>
+            <div>
+              <label>Total drafts</label>
+              <input id="campDraftCount" type="number" min="5" max="30" value="10" />
+            </div>
+          </div>
+
+          <label>Platforms</label>
+          <div class="checks">
+            <label class="check"><input type="checkbox" id="campBsky" checked /> Bluesky</label>
+            <label class="check"><input type="checkbox" id="campIg" /> Instagram</label>
+          </div>
+
+          <label>Hashtag pack(s)</label>
+          <div id="campPackChecks" class="checks"></div>
 
           <div class="row">
-            <button id="genSkyBtn" class="primary">Generate pack</button>
-            <button id="copySkyAllBtn">Copy all</button>
-            <button id="sendToLabBtn">Send to Hashtag Lab</button>
+            <button id="genCampaignBtn" class="primary">Generate campaign pack</button>
+            <button id="saveCampaignBtn">Save campaign</button>
           </div>
         </div>
 
         <div class="card">
           <div class="row between">
-            <h2>Output</h2>
-            <div class="muted small">Each post shows char count (<= 300).</div>
+            <h2>Campaign Output</h2>
+            <div class="row">
+              <button id="copyCampaignBtn">Copy all</button>
+            </div>
           </div>
-          <div id="skyOut" class="stack"></div>
+          <div id="campaignOutput" class="stack"></div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="row between">
+          <h2>Saved Campaigns</h2>
+          <button id="clearCampaignsBtn">Clear campaigns</button>
+        </div>
+        <div id="campaignList" class="stack"></div>
       </div>
     </section>
 
-    <!-- Hashtag Lab -->
-    <section id="lab" class="panel">
+    <!-- Draft Library -->
+    <section id="library" class="panel">
+      <div class="card">
+        <div class="row between">
+          <div>
+            <h2>Draft Library</h2>
+            <div class="muted small">Everything you save from Post Studio and Campaigns. Copy from here anytime.</div>
+          </div>
+          <div class="row">
+            <input id="draftSearch" placeholder="Search drafts…" style="max-width:260px" />
+            <select id="draftFilter" style="max-width:180px;">
+              <option value="all" selected>All</option>
+              <option value="bluesky">Bluesky</option>
+              <option value="instagram">Instagram</option>
+            </select>
+            <button id="clearDraftsBtn">Clear drafts</button>
+          </div>
+        </div>
+      </div>
+      <div id="draftList" class="stack"></div>
+    </section>
+
+    <!-- Growth Lab -->
+    <section id="growth" class="panel">
       <div class="grid2">
         <div class="card">
           <h2>Add metrics</h2>
+          <div class="muted small">Paste a post you published (with hashtags) + enter metrics. We rank tags + templates.</div>
+
+          <label>Paste published post text</label>
+          <textarea id="metricText" rows="6" placeholder="Paste post here…"></textarea>
+
           <div class="grid3">
             <div>
               <label>Likes</label>
-              <input id="labLikes" type="number" value="0" />
+              <input id="metricLikes" type="number" value="0" />
             </div>
             <div>
               <label>Reposts</label>
-              <input id="labReposts" type="number" value="0" />
+              <input id="metricReposts" type="number" value="0" />
             </div>
             <div>
               <label>Replies</label>
-              <input id="labReplies" type="number" value="0" />
+              <input id="metricReplies" type="number" value="0" />
             </div>
           </div>
 
-          <label>Posted text (must include hashtags)</label>
-          <textarea id="labText" rows="6" placeholder="Paste a post here…"></textarea>
+          <label>Platform</label>
+          <select id="metricPlatform">
+            <option value="bluesky" selected>Bluesky</option>
+            <option value="instagram">Instagram</option>
+          </select>
+
+          <label>Template (optional)</label>
+          <select id="metricTemplate"></select>
 
           <div class="row">
-            <button id="labAddBtn" class="primary">Add entry</button>
-            <button id="labClearBtn">Clear all</button>
+            <button id="addMetricBtn" class="primary">Add entry</button>
+            <button id="clearMetricsBtn">Clear metrics</button>
           </div>
         </div>
 
         <div class="card">
-          <h2>Top hashtags</h2>
-          <div id="tagRank" class="stack"></div>
+          <h2>What’s working</h2>
+          <div class="muted small">Ranked by average score (reposts/replies weighted).</div>
+
+          <h3>Top hashtags</h3>
+          <div id="topTags" class="stack"></div>
+
+          <h3 style="margin-top:14px;">Top templates</h3>
+          <div id="topTemplates" class="stack"></div>
         </div>
       </div>
 
       <div class="card">
         <h2>Entries</h2>
-        <div id="labEntries" class="stack"></div>
+        <div id="metricEntries" class="stack"></div>
       </div>
     </section>
 
@@ -270,72 +354,50 @@
     <section id="settings" class="panel">
       <div class="grid2">
         <div class="card">
-          <h2>Social footer</h2>
-          <div class="grid2">
-            <div>
-              <label>Instagram</label>
-              <input id="sInstagram" />
-            </div>
-            <div>
-              <label>Facebook</label>
-              <input id="sFacebook" />
-            </div>
-            <div>
-              <label>Bluesky</label>
-              <input id="sBluesky" />
-            </div>
-            <div>
-              <label>TikTok</label>
-              <input id="sTiktok" />
-            </div>
-          </div>
-          <label>Discord link</label>
-          <input id="sDiscord" placeholder="https://discord.gg/..." />
+          <h2>RSS feeds</h2>
+          <div class="muted small">These power Feed Desk. Enable/disable or add new feeds.</div>
+          <textarea id="rssJson" rows="12"></textarea>
           <div class="row">
-            <button id="saveSocialBtn" class="primary">Save</button>
+            <button id="saveRssBtn" class="primary">Save</button>
+            <button id="resetRssBtn">Reset</button>
           </div>
 
           <hr class="hr" />
 
-          <h2>RSS feeds (Democracy Watch)</h2>
-          <div class="muted small">Enable/disable feeds here. (Server fetch avoids browser CORS pain.)</div>
-          <textarea id="rssJson" rows="10"></textarea>
+          <h2>Hashtag packs</h2>
+          <div class="muted small">Used by Post Studio + Campaigns. One tag per item, no # needed.</div>
+          <textarea id="packsJson" rows="12"></textarea>
           <div class="row">
-            <button id="saveRssBtn" class="primary">Save feeds</button>
-            <button id="resetRssBtn">Reset</button>
+            <button id="savePacksBtn" class="primary">Save</button>
+            <button id="resetPacksBtn">Reset</button>
           </div>
         </div>
 
         <div class="card">
-          <h2>Templates + hashtag packs</h2>
+          <h2>Boilerplate</h2>
+          <div class="muted small">Reusable closers + CTA lines for fast generation.</div>
 
-          <h3>Templates JSON</h3>
-          <textarea id="templatesJson" rows="10"></textarea>
-          <div class="row">
-            <button id="saveTemplatesBtn" class="primary">Save templates</button>
-            <button id="resetTemplatesBtn">Reset</button>
-          </div>
+          <label>Default CTAs (one per line)</label>
+          <textarea id="ctasText" rows="8"></textarea>
 
-          <h3>Hashtag packs JSON</h3>
-          <textarea id="packsJson" rows="10"></textarea>
+          <label>Default closers (one per line)</label>
+          <textarea id="closersText" rows="8"></textarea>
+
           <div class="row">
-            <button id="savePacksBtn" class="primary">Save packs</button>
-            <button id="resetPacksBtn">Reset</button>
+            <button id="saveBoilerBtn" class="primary">Save</button>
+            <button id="resetBoilerBtn">Reset</button>
           </div>
 
           <hr class="hr" />
-
-          <h2>Export / Import settings</h2>
-          <div class="row">
-            <button id="exportSettingsBtn">Export settings</button>
-            <button id="importSettingsBtn">Import settings</button>
+          <h2>Notes</h2>
+          <div class="muted small">
+            Everything saves locally in your browser (localStorage). Export/import moves your data between devices.
           </div>
         </div>
       </div>
     </section>
-
   </main>
 
-  <script src="/static/app.js"></script>
+  <script src="{{ request.script_root }}/static/app.js"></script>
 </body>
 </html>
