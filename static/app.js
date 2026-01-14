@@ -44,6 +44,39 @@ const TEMPLATES = [
   { id: "community_win", name: "Community win / recap" }
 ];
 
+function chooseVar(arr, i){
+  if (!arr || !arr.length) return "";
+  return arr[i % arr.length];
+}
+
+const HOOKS = [
+  "This is happening now.",
+  "Pay attention:",
+  "Here’s the point:",
+  "This matters for all of us.",
+  "Heads up:",
+  "We can’t normalize this."
+];
+
+const WHY_LINES = [
+  "Unchecked power becomes policy.",
+  "When leaders ignore limits, rights erode fast.",
+  "Accountability is what keeps democracy real.",
+  "Authoritarianism grows when institutions cave.",
+  "Rules don’t matter if no one enforces them.",
+  "This is how ‘exceptions’ become the norm."
+];
+
+const PROMPTS = [
+  "Read it. Share it.",
+  "Talk to your neighbors about this.",
+  "Don’t let this slide by quietly.",
+  "Save this. Bring it up at work/school.",
+  "If this worries you, act with us.",
+  "Show up locally — that’s leverage."
+];
+
+
 const $ = (id) => document.getElementById(id);
 
 function loadJson(key, fallback) {
