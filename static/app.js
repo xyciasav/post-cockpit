@@ -751,6 +751,49 @@ async function scrapeLinks(){
   });
 }
 
+function stripCodeFences(s){
+  s = String(s || "").trim();
+  // remove ```json ... ``` fences if model adds them
+  if (s.startsWith("```")) {
+    s = s.replace(/^```[a-zA-Z]*\n?/, "").replace(/```$/, "").trim();
+  }
+  return s;
+}
+
+function safeJsonParse(maybeJson){
+  const raw = stripCodeFences(maybeJson);
+  try { return JSON.parse(raw); } catch {}
+  // try to salvage if model wrapped JSON in extra text
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    const slice = raw.slice(start, end+1);
+    return JSON.parse(slice);
+  }
+  throw new Error("Model did not return valid JSON.");
+}
+
+function clampBsky(text, max=300){
+  text = String(text || "").trim();
+  if (text.length <= max) return text;
+  return text.slice(0, max-1) + "…";
+}
+
+async function fetchMetaForLink(url){
+  if (!url) return null;
+  try {
+    const r = await fetch("/api/scrape", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ urls: [url] })
+    });
+    const data = await r.json();
+    const x = (data.results || [])[0];
+    if (x && x.ok) return x;
+  } catch {}
+  return null;
+}
+
 async function generateDraftsWithAI(){
   const platform = $("studioPlatform").value;     // "bluesky" or "instagram"
   const templateId = $("studioTemplate").value;   // your template selector
@@ -907,6 +950,168 @@ OUTPUT JSON SHAPE
       });
     });
   }
+
+async function generateDraftsWithAI(){
+  const platform = $("studioPlatform").value;     // "bluesky" or "instagram"
+  const templateId = $("studioTemplate").value;   // your template selector
+  const tone = $("studioTone").value;
+  const count = Math.max(1, Math.min(30, Number($("studioCount").value) || 10));
+
+  const tags = getSelectedPackTags("pack_");
+  const tagStr = hashtagString(tags);
+
+  const linkPolicy = $("studioLinkPolicy")?.value || "some";
+  const linkOverride = safeTrim($("studioLink")?.value);
+  const context = getStudioContext();
+
+  // If we have a link, pull meta description/title for better prompting (fast, local server fetch)
+  const chosenLink = linkOverride || context.link || "";
+  const meta = await fetchMetaForLink(chosenLink);
+
+  const system = [
+    "You are a social media writing assistant for a local pro-democracy community group.",
+    "Be factual. Do not invent names, dates, locations, or claims not present in the input.",
+    "No hate. No calls for violence. Keep language firm but safe.",
+    "Return ONLY valid JSON. No markdown. No commentary.",
+  ].join(" ");
+
+  const user = `
+INPUT
+Platform: ${platform}
+Template: ${templateId}
+Tone: ${tone}
+DraftCount: ${count}
+
+SourceTitle: ${context.title || ""}
+SourceSite: ${context.source || ""}
+SourceLink: ${context.link || ""}
+LinkOverride: ${linkOverride || ""}
+
+MetaTitle: ${meta?.title || ""}
+MetaSite: ${meta?.site || ""}
+MetaDescription: ${meta?.description || ""}
+
+Notes: ${context.notes || ""}
+Hashtags: ${tagStr}
+
+RULES
+- If platform is bluesky:
+  - Return exactly ${count} drafts in "bluesky"
+  - Each draft must be <= 300 characters
+  - If a link exists, follow linkPolicy:
+      none = include link in 0 drafts
+      some = include link in exactly 2 drafts (draft 1 and last)
+      every = include link in every draft
+  - Do not include hashtags in the draft text (we add them separately)
+- If platform is instagram:
+  - Return one "instagram_caption" up to ~1500 chars (not strict)
+  - Put hashtags in "hashtags" only, not inside the caption
+- Always include a clear CTA (show up / RSVP / share / call reps / donate / join).
+
+OUTPUT JSON SHAPE
+{
+  "bluesky": ["..."],
+  "instagram_caption": "...",
+  "hashtags": ["tag1","tag2"]
+}
+`;
+
+  const payload = {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user.trim() }
+    ],
+    temperature: 0.7,
+    num_predict: 1100
+  };
+
+  // UI: show loading state
+  $("draftOutput").innerHTML = `<div class="item"><div class="muted">Asking your local AI…</div></div>`;
+
+  let resp;
+  try {
+    const r = await fetch("/api/ai/chat", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    resp = await r.json();
+  } catch (e) {
+    $("draftOutput").innerHTML = "";
+    alert("AI request failed: " + (e?.message || e));
+    return;
+  }
+
+  const content = resp?.message?.content || "";
+  let obj;
+  try {
+    obj = safeJsonParse(content);
+  } catch (e) {
+    $("draftOutput").innerHTML = "";
+    alert("AI returned non-JSON output. Try again.\n\nRaw:\n" + content.slice(0, 600));
+    return;
+  }
+
+  lastGeneratedDrafts = [];
+  const createdAt = nowMs();
+
+  const finalHashtags = normalizeTags(obj.hashtags && obj.hashtags.length ? obj.hashtags : tags);
+
+  if (platform === "instagram") {
+    const caption = safeTrim(obj.instagram_caption || "");
+    const tagBlock = hashtagString(finalHashtags);
+
+    const tagStyle = $("igTagStyle")?.value || "end";
+    let text = caption;
+
+    if (tagBlock) {
+      if (tagStyle === "comment") {
+        text = `${caption}\n\n—\nHashtags (first comment):\n${tagBlock}`.trim();
+      } else {
+        text = `${caption}\n\n${tagBlock}`.trim();
+      }
+    }
+
+    lastGeneratedDrafts.push({
+      id: `tmp_${createdAt}_ig`,
+      platform: "instagram",
+      template: "ai_" + templateId,
+      tone,
+      text,
+      hashtags: finalHashtags,
+      link: chosenLink,
+      sourceTitle: context.title || "",
+      sourceLink: context.link || "",
+      createdAt
+    });
+  } else {
+    const arr = Array.isArray(obj.bluesky) ? obj.bluesky : [];
+    // enforce count + 300 chars client-side as safety net
+    const fixed = arr.slice(0, count).map(t => clampBsky(t, settings.bluesky.maxChars || 300));
+    while (fixed.length < count) fixed.push("⚠️ AI returned too few drafts — click Generate with AI again.");
+
+    fixed.forEach((t, i) => {
+      // optionally append hashtags as separate copy step? (keeping drafts clean per rule)
+      lastGeneratedDrafts.push({
+        id: `tmp_${createdAt}_${i}`,
+        platform: "bluesky",
+        template: "ai_" + templateId,
+        tone,
+        text: t,
+        hashtags: finalHashtags,
+        link: chosenLink,
+        sourceTitle: context.title || "",
+        sourceLink: context.link || "",
+        createdAt
+      });
+    });
+  }
+
+  renderDraftOutput();
+  toast("AI drafts ready");
+}
+
 
   renderDraftOutput();
   toast("AI drafts ready");
