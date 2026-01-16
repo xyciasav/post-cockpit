@@ -216,6 +216,20 @@ function coerceDraftText(x){
   return String(x ?? "").trim();
 }
 
+    function ensureNonEmptyDraft(x, i){
+  // coerce to string
+  let t = coerceDraftText(x);
+
+  // if still empty, try JSON for objects
+  if (!t && x && typeof x === "object") {
+    try { t = JSON.stringify(x); } catch {}
+  }
+
+  // if still empty, give a visible placeholder (never blank)
+  if (!t) t = `⚠️ Draft ${i+1} came back empty. Click Generate with AI again.`;
+
+  return t.trim();
+}
 
 // -------- Feed Desk (RSS) --------
 async function loadRss(){
@@ -938,23 +952,6 @@ OUTPUT JSON SHAPE
     if (platform === "instagram") {
       const caption = coerceDraftText(obj.instagram_caption || "");
       const tagBlock = hashtagString(finalHashtags);
-
-      function ensureNonEmptyDraft(x, i){
-  // coerce to string
-  let t = coerceDraftText(x);
-
-  // if still empty, try JSON for objects
-  if (!t && x && typeof x === "object") {
-    try { t = JSON.stringify(x); } catch {}
-  }
-
-  // if still empty, give a visible placeholder (never blank)
-  if (!t) t = `⚠️ Draft ${i+1} came back empty. Click Generate with AI again.`;
-
-  return t.trim();
-}
-
-
       const tagStyle = $("igTagStyle")?.value || "end";
       let text = caption;
 
