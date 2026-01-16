@@ -864,7 +864,7 @@ async function generateDraftsWithAI(){
     const user = `
 INPUT
 Platform: ${platform}
-Template: ${templateId}
+Template: ${templateId} (use notes as the primary why-it-matters angle)
 Tone: ${tone}
 DraftCount: ${count}
 
@@ -877,7 +877,9 @@ MetaTitle: ${meta?.title || ""}
 MetaSite: ${meta?.site || ""}
 MetaDescription: ${meta?.description || ""}
 
-Notes: ${context.notes || ""}
+HIGH PRIORITY LOCAL ANGLE (must be reflected in every draft):
+${context.notes || "(none)"}
+
 Hashtags: ${tagStr}
 
 RULES
@@ -893,6 +895,9 @@ RULES
   - Return one "instagram_caption" up to ~1500 chars (not strict)
   - Put hashtags in "hashtags" only, not inside the caption
 - Always include a clear CTA (show up / RSVP / share / call reps / donate / join).
+- You MUST incorporate the "HIGH PRIORITY LOCAL ANGLE" in each draft as the 'why it matters' sentence.
+- If notes are empty, create a neutral why-it-matters line based only on the headline.
+
 
 OUTPUT JSON SHAPE
 {
