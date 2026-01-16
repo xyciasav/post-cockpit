@@ -934,6 +934,22 @@ OUTPUT JSON SHAPE
       const caption = coerceDraftText(obj.instagram_caption || "");
       const tagBlock = hashtagString(finalHashtags);
 
+      function ensureNonEmptyDraft(x, i){
+  // coerce to string
+  let t = coerceDraftText(x);
+
+  // if still empty, try JSON for objects
+  if (!t && x && typeof x === "object") {
+    try { t = JSON.stringify(x); } catch {}
+  }
+
+  // if still empty, give a visible placeholder (never blank)
+  if (!t) t = `⚠️ Draft ${i+1} came back empty. Click Generate with AI again.`;
+
+  return t.trim();
+}
+
+
       const tagStyle = $("igTagStyle")?.value || "end";
       let text = caption;
 
@@ -959,9 +975,16 @@ OUTPUT JSON SHAPE
     } else {
       const arr = Array.isArray(obj.bluesky) ? obj.bluesky : [];
 
-      const fixed = arr
-        .slice(0, count)
-        .map(x => clampBsky(coerceDraftText(x), settings.bluesky.maxChars || 300));
+// Debug breadcrumb (open DevTools console to inspect when weirdness happens)
+window.__lastAI = { raw: content, parsed: obj };
+
+const fixed = arr
+  .slice(0, count)
+  .map((x, i) => clampBsky(
+    ensureNonEmptyDraft(x, i),
+    settings.bluesky.maxChars || 300
+  ));
+
 
       while (fixed.length < count) {
         fixed.push("⚠️ AI returned too few drafts — click Generate with AI again.");
@@ -999,6 +1022,10 @@ OUTPUT JSON SHAPE
 function safeJsonParse(maybeJson){
   const raw = stripCodeFences(maybeJson);
   try { return JSON.parse(raw); } catch {}
+  try {
+  const parsed = JSON.parse(raw);
+  return parsed;
+} catch {}
   // try to salvage if model wrapped JSON in extra text
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
