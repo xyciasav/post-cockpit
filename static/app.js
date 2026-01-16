@@ -195,6 +195,28 @@ function initTabs(){
   });
 }
 
+function coerceDraftText(x){
+  if (typeof x === "string") return x.trim();
+
+  if (x && typeof x === "object") {
+    // common field names different models/prompts return
+    const pick =
+      x.text ?? x.post ?? x.content ?? x.caption ?? x.message ?? x.output ?? "";
+
+    if (typeof pick === "string") return pick.trim();
+
+    // sometimes nested like { message: { content: "..." } }
+    const nested = x.message?.content;
+    if (typeof nested === "string") return nested.trim();
+
+    // last resort (don’t produce [object Object])
+    return JSON.stringify(x);
+  }
+
+  return String(x ?? "").trim();
+}
+
+
 // -------- Feed Desk (RSS) --------
 async function loadRss(){
   const enabled = (settings.rssFeeds || []).filter(f => f.enabled);
@@ -653,7 +675,10 @@ function renderDraftOutput(){
         <div class="meta">
           <span class="pill">${escapeHtml(d.platform)}</span>
           <span class="pill">${escapeHtml(TEMPLATES.find(t=>t.id===d.template)?.name || d.template)}</span>
-          ${d.platform === "bluesky" ? `<span class="pill ${d.text.length>300?"warn":"ok"}">${d.text.length}/300</span>` : `<span class="pill">${d.text.length} chars</span>`}
+          ${d.platform === "bluesky"
+  ? `<span class="pill ${((d.text||"").length>300)?"warn":"ok"}">${(d.text||"").length}/300</span>`
+  : `<span class="pill">${(d.text||"").length} chars</span>`
+}
         </div>
         <div class="row">
           <button class="copyOne">Copy</button>
@@ -664,7 +689,8 @@ function renderDraftOutput(){
     `;
 
     const ta = div.querySelector(".draftText");
-    ta.value = d.text;
+    ta.value = (typeof d.text === "string") ? d.text : coerceDraftText(d.text);
+    d.text = ta.value;
     ta.oninput = () => { d.text = ta.value; };
 
     div.querySelector(".copyOne").onclick = () => copyToClipboard(d.text);
@@ -795,30 +821,39 @@ async function fetchMetaForLink(url){
 }
 
 async function generateDraftsWithAI(){
-  const platform = $("studioPlatform").value;     // "bluesky" or "instagram"
-  const templateId = $("studioTemplate").value;   // your template selector
-  const tone = $("studioTone").value;
-  const count = Math.max(1, Math.min(30, Number($("studioCount").value) || 10));
+  const aiBtn = $("aiDraftsBtn");
+  const localBtn = $("genDraftsBtn");
+  const oldAiLabel = aiBtn?.textContent || "Generate with AI";
 
-  const tags = getSelectedPackTags("pack_");
-  const tagStr = hashtagString(tags);
+  // UI start
+  if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = "Generating…"; }
+  if (localBtn) localBtn.disabled = true;
+  $("draftOutput").innerHTML = `<div class="item"><div class="muted">Asking your local AI…</div></div>`;
 
-  const linkPolicy = $("studioLinkPolicy")?.value || "some";
-  const linkOverride = safeTrim($("studioLink")?.value);
-  const context = getStudioContext();
+  try {
+    const platform = $("studioPlatform").value;     // "bluesky" or "instagram"
+    const templateId = $("studioTemplate").value;
+    const tone = $("studioTone").value;
+    const count = Math.max(1, Math.min(30, Number($("studioCount").value) || 10));
 
-  // If we have a link, pull meta description/title for better prompting (fast, local server fetch)
-  const chosenLink = linkOverride || context.link || "";
-  const meta = await fetchMetaForLink(chosenLink);
+    const tags = getSelectedPackTags("pack_");
+    const tagStr = hashtagString(tags);
 
-  const system = [
-    "You are a social media writing assistant for a local pro-democracy community group.",
-    "Be factual. Do not invent names, dates, locations, or claims not present in the input.",
-    "No hate. No calls for violence. Keep language firm but safe.",
-    "Return ONLY valid JSON. No markdown. No commentary.",
-  ].join(" ");
+    const linkPolicy = $("studioLinkPolicy")?.value || "some";
+    const linkOverride = safeTrim($("studioLink")?.value);
+    const context = getStudioContext();
 
-  const user = `
+    const chosenLink = linkOverride || context.link || "";
+    const meta = await fetchMetaForLink(chosenLink);
+
+    const system = [
+      "You are a social media writing assistant for a local pro-democracy community group.",
+      "Be factual. Do not invent names, dates, locations, or claims not present in the input.",
+      "No hate. No calls for violence. Keep language firm but safe.",
+      "Return ONLY valid JSON. No markdown. No commentary."
+    ].join(" ");
+
+    const user = `
 INPUT
 Platform: ${platform}
 Template: ${templateId}
@@ -857,275 +892,101 @@ OUTPUT JSON SHAPE
   "instagram_caption": "...",
   "hashtags": ["tag1","tag2"]
 }
-`;
+`.trim();
 
-  const payload = {
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user.trim() }
-    ],
-    temperature: 0.7,
-    num_predict: 1100
-  };
+    const payload = {
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user }
+      ],
+      temperature: 0.7,
+      num_predict: 1100
+    };
 
-  // UI: show loading state
-  $("draftOutput").innerHTML = `<div class="item"><div class="muted">Asking your local AI…</div></div>`;
-
-  let resp;
-  try {
     const r = await fetch("/api/ai/chat", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(payload)
     });
+
     if (!r.ok) throw new Error(await r.text());
-    resp = await r.json();
-  } catch (e) {
-    $("draftOutput").innerHTML = "";
-    alert("AI request failed: " + (e?.message || e));
-    return;
-  }
+    const resp = await r.json();
 
-  const content = resp?.message?.content || "";
-  let obj;
-  try {
-    obj = safeJsonParse(content);
-  } catch (e) {
-    $("draftOutput").innerHTML = "";
-    alert("AI returned non-JSON output. Try again.\n\nRaw:\n" + content.slice(0, 600));
-    return;
-  }
+    const content = resp?.message?.content || "";
+    const obj = safeJsonParse(content);
 
-  lastGeneratedDrafts = [];
-  const createdAt = nowMs();
+    lastGeneratedDrafts = [];
+    const createdAt = nowMs();
 
-  const finalHashtags = normalizeTags(obj.hashtags && obj.hashtags.length ? obj.hashtags : tags);
+    const finalHashtags = normalizeTags(
+      (obj.hashtags && obj.hashtags.length) ? obj.hashtags : tags
+    );
 
-  if (platform === "instagram") {
-    const caption = safeTrim(obj.instagram_caption || "");
-    const tagBlock = hashtagString(finalHashtags);
+    if (platform === "instagram") {
+      const caption = coerceDraftText(obj.instagram_caption || "");
+      const tagBlock = hashtagString(finalHashtags);
 
-    const tagStyle = $("igTagStyle")?.value || "end";
-    let text = caption;
+      const tagStyle = $("igTagStyle")?.value || "end";
+      let text = caption;
 
-    if (tagBlock) {
-      if (tagStyle === "comment") {
-        text = `${caption}\n\n—\nHashtags (first comment):\n${tagBlock}`.trim();
-      } else {
-        text = `${caption}\n\n${tagBlock}`.trim();
+      if (tagBlock) {
+        text = (tagStyle === "comment")
+          ? `${caption}\n\n—\nHashtags (first comment):\n${tagBlock}`.trim()
+          : `${caption}\n\n${tagBlock}`.trim();
       }
-    }
 
-    lastGeneratedDrafts.push({
-      id: `tmp_${createdAt}_ig`,
-      platform: "instagram",
-      template: "ai_" + templateId,
-      tone,
-      text,
-      hashtags: finalHashtags,
-      link: chosenLink,
-      sourceTitle: context.title || "",
-      sourceLink: context.link || "",
-      createdAt
-    });
-  } else {
-    const arr = Array.isArray(obj.bluesky) ? obj.bluesky : [];
-    // enforce count + 300 chars client-side as safety net
-    const fixed = arr.slice(0, count).map(t => clampBsky(t, settings.bluesky.maxChars || 300));
-    while (fixed.length < count) fixed.push("⚠️ AI returned too few drafts — click Generate with AI again.");
-
-    fixed.forEach((t, i) => {
-      // optionally append hashtags as separate copy step? (keeping drafts clean per rule)
       lastGeneratedDrafts.push({
-        id: `tmp_${createdAt}_${i}`,
-        platform: "bluesky",
+        id: `tmp_${createdAt}_ig`,
+        platform: "instagram",
         template: "ai_" + templateId,
         tone,
-        text: t,
+        text,
         hashtags: finalHashtags,
         link: chosenLink,
         sourceTitle: context.title || "",
         sourceLink: context.link || "",
         createdAt
       });
-    });
-  }
 
-async function generateDraftsWithAI(){
-  const platform = $("studioPlatform").value;     // "bluesky" or "instagram"
-  const templateId = $("studioTemplate").value;   // your template selector
-  const tone = $("studioTone").value;
-  const count = Math.max(1, Math.min(30, Number($("studioCount").value) || 10));
+    } else {
+      const arr = Array.isArray(obj.bluesky) ? obj.bluesky : [];
 
-  const tags = getSelectedPackTags("pack_");
-  const tagStr = hashtagString(tags);
+      const fixed = arr
+        .slice(0, count)
+        .map(x => clampBsky(coerceDraftText(x), settings.bluesky.maxChars || 300));
 
-  const linkPolicy = $("studioLinkPolicy")?.value || "some";
-  const linkOverride = safeTrim($("studioLink")?.value);
-  const context = getStudioContext();
-
-  // If we have a link, pull meta description/title for better prompting (fast, local server fetch)
-  const chosenLink = linkOverride || context.link || "";
-  const meta = await fetchMetaForLink(chosenLink);
-
-  const system = [
-    "You are a social media writing assistant for a local pro-democracy community group.",
-    "Be factual. Do not invent names, dates, locations, or claims not present in the input.",
-    "No hate. No calls for violence. Keep language firm but safe.",
-    "Return ONLY valid JSON. No markdown. No commentary.",
-  ].join(" ");
-
-  const user = `
-INPUT
-Platform: ${platform}
-Template: ${templateId}
-Tone: ${tone}
-DraftCount: ${count}
-
-SourceTitle: ${context.title || ""}
-SourceSite: ${context.source || ""}
-SourceLink: ${context.link || ""}
-LinkOverride: ${linkOverride || ""}
-
-MetaTitle: ${meta?.title || ""}
-MetaSite: ${meta?.site || ""}
-MetaDescription: ${meta?.description || ""}
-
-Notes: ${context.notes || ""}
-Hashtags: ${tagStr}
-
-RULES
-- If platform is bluesky:
-  - Return exactly ${count} drafts in "bluesky"
-  - Each draft must be <= 300 characters
-  - If a link exists, follow linkPolicy:
-      none = include link in 0 drafts
-      some = include link in exactly 2 drafts (draft 1 and last)
-      every = include link in every draft
-  - Do not include hashtags in the draft text (we add them separately)
-- If platform is instagram:
-  - Return one "instagram_caption" up to ~1500 chars (not strict)
-  - Put hashtags in "hashtags" only, not inside the caption
-- Always include a clear CTA (show up / RSVP / share / call reps / donate / join).
-
-OUTPUT JSON SHAPE
-{
-  "bluesky": ["..."],
-  "instagram_caption": "...",
-  "hashtags": ["tag1","tag2"]
-}
-`;
-
-  const payload = {
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user.trim() }
-    ],
-    temperature: 0.7,
-    num_predict: 1100
-  };
-
-  // UI: show loading state
-  $("draftOutput").innerHTML = `<div class="item"><div class="muted">Asking your local AI…</div></div>`;
-
-  let resp;
-  try {
-    const r = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload)
-    });
-    if (!r.ok) throw new Error(await r.text());
-    resp = await r.json();
-  } catch (e) {
-    $("draftOutput").innerHTML = "";
-    alert("AI request failed: " + (e?.message || e));
-    return;
-  }
-
-  const content = resp?.message?.content || "";
-  let obj;
-  try {
-    obj = safeJsonParse(content);
-  } catch (e) {
-    $("draftOutput").innerHTML = "";
-    alert("AI returned non-JSON output. Try again.\n\nRaw:\n" + content.slice(0, 600));
-    return;
-  }
-
-  lastGeneratedDrafts = [];
-  const createdAt = nowMs();
-
-  const finalHashtags = normalizeTags(obj.hashtags && obj.hashtags.length ? obj.hashtags : tags);
-
-  if (platform === "instagram") {
-    const caption = safeTrim(obj.instagram_caption || "");
-    const tagBlock = hashtagString(finalHashtags);
-
-    const tagStyle = $("igTagStyle")?.value || "end";
-    let text = caption;
-
-    if (tagBlock) {
-      if (tagStyle === "comment") {
-        text = `${caption}\n\n—\nHashtags (first comment):\n${tagBlock}`.trim();
-      } else {
-        text = `${caption}\n\n${tagBlock}`.trim();
+      while (fixed.length < count) {
+        fixed.push("⚠️ AI returned too few drafts — click Generate with AI again.");
       }
+
+      fixed.forEach((t, i) => {
+        lastGeneratedDrafts.push({
+          id: `tmp_${createdAt}_${i}`,
+          platform: "bluesky",
+          template: "ai_" + templateId,
+          tone,
+          text: t,
+          hashtags: finalHashtags,
+          link: chosenLink,
+          sourceTitle: context.title || "",
+          sourceLink: context.link || "",
+          createdAt
+        });
+      });
     }
 
-    lastGeneratedDrafts.push({
-      id: `tmp_${createdAt}_ig`,
-      platform: "instagram",
-      template: "ai_" + templateId,
-      tone,
-      text,
-      hashtags: finalHashtags,
-      link: chosenLink,
-      sourceTitle: context.title || "",
-      sourceLink: context.link || "",
-      createdAt
-    });
-  } else {
-    const arr = Array.isArray(obj.bluesky) ? obj.bluesky : [];
-    // enforce count + 300 chars client-side as safety net
-    const fixed = arr.slice(0, count).map(t => clampBsky(t, settings.bluesky.maxChars || 300));
-    while (fixed.length < count) fixed.push("⚠️ AI returned too few drafts — click Generate with AI again.");
-
-    fixed.forEach((t, i) => {
-      // optionally append hashtags as separate copy step? (keeping drafts clean per rule)
-      lastGeneratedDrafts.push({
-        id: `tmp_${createdAt}_${i}`,
-        platform: "bluesky",
-        template: "ai_" + templateId,
-        tone,
-        text: t,
-        hashtags: finalHashtags,
-        link: chosenLink,
-        sourceTitle: context.title || "",
-        sourceLink: context.link || "",
-        createdAt
-      });
-    });
+    renderDraftOutput();
+    toast("AI drafts ready");
+  } catch (e) {
+    $("draftOutput").innerHTML = "";
+    alert("AI drafts failed: " + (e?.message || e));
+  } finally {
+    // Always restore buttons
+    if (aiBtn) { aiBtn.textContent = oldAiLabel; aiBtn.disabled = false; aiBtn.blur(); }
+    if (localBtn) { localBtn.disabled = false; localBtn.blur(); }
   }
-
-  renderDraftOutput();
-  toast("AI drafts ready");
 }
 
-
-  renderDraftOutput();
-  toast("AI drafts ready");
-}
-
-
-function stripCodeFences(s){
-  s = String(s || "").trim();
-  // remove ```json ... ``` fences if model adds them
-  if (s.startsWith("```")) {
-    s = s.replace(/^```[a-zA-Z]*\n?/, "").replace(/```$/, "").trim();
-  }
-  return s;
-}
 
 function safeJsonParse(maybeJson){
   const raw = stripCodeFences(maybeJson);
