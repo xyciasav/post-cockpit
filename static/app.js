@@ -8,6 +8,10 @@ const LS_SIGNALS   = "sc_signals_v1";
 const LS_DRAFTS    = "sc_drafts_v1";
 const LS_CAMPAIGNS = "sc_campaigns_v1";
 const LS_METRICS   = "sc_metrics_v1";
+const LS_SCHEDULE = "sc_schedule_v1";
+let schedule = loadJson(LS_SCHEDULE, []);
+
+
 
 // -------- Defaults --------
 const DEFAULT_SETTINGS = {
@@ -702,13 +706,17 @@ function renderDraftOutput(){
               : `<span class="pill">${textStr.length} chars</span>`
           }
         </div>
-        <div class="row">
-          <button class="copyOne">Copy</button>
-          <button class="delOne danger">Remove</button>
-        </div>
+<div class="row">
+  <button class="copyOne">Copy</button>
+  <button class="scheduleOne primary">Schedule</button>
+  <button class="delOne danger">Remove</button>
+</div>
+
       </div>
       <textarea rows="5" class="draftText"></textarea>
     `;
+div.querySelector(".scheduleOne").onclick = () => openSchedulePrompt(d);
+
 
     const ta = div.querySelector(".draftText");
     ta.value = textStr;
@@ -919,7 +927,11 @@ OUTPUT JSON SHAPE
   "instagram_caption": "...",
   "hashtags": ["tag1","tag2"]
 }
+STRICT:
+- bluesky must be an array of strings (not objects)
+- do not include linkPolicy/linkOverride fields  
 `.trim();
+
 
     const payload = {
       messages: [
@@ -1501,6 +1513,8 @@ function importAll(){
       alert("Imported.");
     } catch {
       alert("Invalid file.");
+      renderCalendar();
+renderAgenda();
     }
   };
   input.click();
@@ -1520,6 +1534,17 @@ function resetAllLocal(){
 function wire(){
   // tabs
   initTabs();
+$("calPrev").onclick = () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()-1, 1); renderCalendar(); };
+$("calNext").onclick = () => { calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth()+1, 1); renderCalendar(); };
+$("calToday").onclick = () => { calCursor = new Date(); agendaDay = new Date(); renderCalendar(); renderAgenda(); };
+$("calJump").onchange = () => {
+  const v = $("calJump").value; // YYYY-MM
+  if (!v) return;
+  const [y,m] = v.split("-").map(Number);
+  calCursor = new Date(y, m-1, 1);
+  renderCalendar();
+};
+
 
   // Desk
   $("loadRssBtn").onclick = loadRss;
@@ -1593,6 +1618,178 @@ function wire(){
   $("importAllBtn").onclick = importAll;
   $("resetBtn").onclick = resetAllLocal;
 }
+
+let calCursor = new Date();   // month being viewed
+let agendaDay = new Date();   // day selected
+
+function ymd(d){
+  const x = new Date(d);
+  const mm = String(x.getMonth()+1).padStart(2,"0");
+  const dd = String(x.getDate()).padStart(2,"0");
+  return `${x.getFullYear()}-${mm}-${dd}`;
+}
+
+function monthLabel(d){
+  return d.toLocaleString(undefined, { month:"long", year:"numeric" });
+}
+
+function getDayCountsForMonth(d){
+  const counts = {};
+  const m = d.getMonth();
+  const y = d.getFullYear();
+  schedule.forEach(s => {
+    if (s.status !== "scheduled") return;
+    const dt = new Date(s.scheduledFor);
+    if (dt.getMonth() === m && dt.getFullYear() === y){
+      const key = ymd(dt);
+      counts[key] = (counts[key] || 0) + 1;
+    }
+  });
+  return counts;
+}
+
+function renderCalendar(){
+  const grid = $("calGrid");
+  const label = $("calLabel");
+  if (!grid || !label) return;
+
+  label.textContent = monthLabel(calCursor);
+
+  const year = calCursor.getFullYear();
+  const month = calCursor.getMonth();
+
+  const first = new Date(year, month, 1);
+  const startDow = first.getDay(); // 0 Sun
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+
+  const counts = getDayCountsForMonth(calCursor);
+  const selected = ymd(agendaDay);
+
+  // header row
+  const dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  let html = `<div class="item" style="padding:10px;">
+    <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:8px;">
+      ${dow.map(x=>`<div class="muted small" style="text-align:center;">${x}</div>`).join("")}
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px;">`;
+
+  // blanks
+  for (let i=0;i<startDow;i++){
+    html += `<div style="height:44px;"></div>`;
+  }
+
+  // days
+  for (let day=1; day<=daysInMonth; day++){
+    const dt = new Date(year, month, day);
+    const key = ymd(dt);
+    const n = counts[key] || 0;
+    const isSel = key === selected;
+
+    html += `
+      <button class="${isSel ? "primary" : ""}" data-day="${key}"
+        style="height:44px; border-radius:10px; position:relative;">
+        ${day}
+        ${n ? `<span class="pill ok" style="position:absolute; right:6px; bottom:6px;">${n}</span>` : ""}
+      </button>`;
+  }
+
+  html += `</div></div>`;
+  grid.innerHTML = html;
+
+  grid.querySelectorAll("button[data-day]").forEach(b=>{
+    b.onclick = () => {
+      agendaDay = new Date(b.dataset.day + "T00:00:00");
+      renderAgenda();
+      renderCalendar();
+    };
+  });
+}
+
+function renderAgenda(){
+  const label = $("agendaLabel");
+  const list = $("agendaList");
+  if (!label || !list) return;
+
+  const key = ymd(agendaDay);
+  label.textContent = `Scheduled for ${key}`;
+
+  const items = schedule
+    .filter(s => s.status === "scheduled" && ymd(s.scheduledFor) === key)
+    .sort((a,b)=> new Date(a.scheduledFor) - new Date(b.scheduledFor));
+
+  if (!items.length){
+    list.innerHTML = `<div class="item"><div class="muted">Nothing scheduled for this day.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  items.forEach(s=>{
+    const t = new Date(s.scheduledFor).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="row between">
+        <div>
+          <b>${t}</b> <span class="pill">${escapeHtml(s.platform)}</span>
+          <div class="muted small" style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(s.text)}</div>
+        </div>
+        <div class="row">
+          <button class="mark primary">Mark posted</button>
+          <button class="del danger">Delete</button>
+        </div>
+      </div>
+    `;
+    div.querySelector(".mark").onclick = () => {
+      s.status = "posted";
+      saveJson(LS_SCHEDULE, schedule);
+      renderAgenda();
+      renderCalendar();
+    };
+    div.querySelector(".del").onclick = () => {
+      schedule = schedule.filter(x => x.id !== s.id);
+      saveJson(LS_SCHEDULE, schedule);
+      renderAgenda();
+      renderCalendar();
+    };
+    list.appendChild(div);
+  });
+}
+
+function openSchedulePrompt(draft){
+  // Use snapshot text so future edits don't change the scheduled copy
+  const defaultISO = new Date(Date.now() + 60*60*1000); // +1 hour
+  const pad = (n)=>String(n).padStart(2,"0");
+  const isoLocal =
+    `${defaultISO.getFullYear()}-${pad(defaultISO.getMonth()+1)}-${pad(defaultISO.getDate())}T${pad(defaultISO.getHours())}:${pad(defaultISO.getMinutes())}`;
+
+  const when = prompt("Schedule date/time (YYYY-MM-DDTHH:MM)", isoLocal);
+  if (!when) return;
+
+  const dt = new Date(when);
+  if (isNaN(dt.getTime())){
+    alert("Invalid date/time format.");
+    return;
+  }
+
+  schedule.unshift({
+    id: `sch_${nowMs()}_${Math.random().toString(16).slice(2)}`,
+    draftId: draft.id,
+    text: coerceDraftText(draft.text),
+    platform: draft.platform,
+    scheduledFor: when,
+    status: "scheduled",
+    createdAt: nowMs()
+  });
+  saveJson(LS_SCHEDULE, schedule);
+
+  agendaDay = new Date(ymd(dt) + "T00:00:00");
+  calCursor = new Date(dt.getFullYear(), dt.getMonth(), 1);
+
+  toast("Scheduled");
+  renderCalendar();
+  renderAgenda();
+}
+
 
 function bootRenders(){
   renderTemplateSelects();
