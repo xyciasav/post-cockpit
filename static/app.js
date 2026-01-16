@@ -666,19 +666,27 @@ function renderDraftOutput(){
   }
 
   lastGeneratedDrafts.forEach((d, idx) => {
+    // ALWAYS coerce to string first
+    const textStr = coerceDraftText(d.text);
+    d.text = textStr; // normalize so the rest of the app stays consistent
+
     const div = document.createElement("div");
-    const over = (d.platform === "bluesky" && d.text.length > (settings.bluesky.maxChars||300));
+    const max = (settings.bluesky.maxChars || 300);
+    const over = (d.platform === "bluesky" && textStr.length > max);
     div.className = "item " + (over ? "bad" : "good");
+
+    const tplLabel = TEMPLATES.find(t => t.id === d.template)?.name || d.template;
 
     div.innerHTML = `
       <div class="row between">
         <div class="meta">
           <span class="pill">${escapeHtml(d.platform)}</span>
-          <span class="pill">${escapeHtml(TEMPLATES.find(t=>t.id===d.template)?.name || d.template)}</span>
-          ${d.platform === "bluesky"
-  ? `<span class="pill ${((d.text||"").length>300)?"warn":"ok"}">${(d.text||"").length}/300</span>`
-  : `<span class="pill">${(d.text||"").length} chars</span>`
-}
+          <span class="pill">${escapeHtml(tplLabel)}</span>
+          ${
+            d.platform === "bluesky"
+              ? `<span class="pill ${textStr.length > max ? "warn" : "ok"}">${textStr.length}/${max}</span>`
+              : `<span class="pill">${textStr.length} chars</span>`
+          }
         </div>
         <div class="row">
           <button class="copyOne">Copy</button>
@@ -689,8 +697,7 @@ function renderDraftOutput(){
     `;
 
     const ta = div.querySelector(".draftText");
-    ta.value = (typeof d.text === "string") ? d.text : coerceDraftText(d.text);
-    d.text = ta.value;
+    ta.value = textStr;
     ta.oninput = () => { d.text = ta.value; };
 
     div.querySelector(".copyOne").onclick = () => copyToClipboard(d.text);
@@ -702,6 +709,7 @@ function renderDraftOutput(){
     wrap.appendChild(div);
   });
 }
+
 
 function copyAllStudioDrafts(){
   if (!lastGeneratedDrafts.length) return;
