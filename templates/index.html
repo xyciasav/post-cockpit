@@ -1,484 +1,118 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="color-scheme" content="dark light" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Social Cockpit</title>
-  <link rel="stylesheet" href="{{ request.script_root }}/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <header class="wrap">
-    <div class="topbar">
-      <div>
-        <h1>Social Cockpit</h1>
-        <div class="muted">Bluesky-first social helper • Save signals → generate drafts → copy/queue → track what works</div>
-      </div>
-      <div class="topbar-actions">
-        <button id="exportAllBtn">Export</button>
-        <button id="importAllBtn">Import</button>
-        <button id="resetBtn" class="danger">Reset (local)</button>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div class="brand-text">
+        <div class="brand-title">Social Cockpit</div>
+        <div class="brand-subtitle">Local tools • single page</div>
       </div>
     </div>
+
+    <nav class="tabs" aria-label="Top Navigation Tabs">
+      <button class="tab active" data-tab="substack" type="button">Substack Generator</button>
+      <button class="tab" data-tab="placeholder" type="button">Placeholder</button>
+    </nav>
   </header>
 
-  <main class="wrap">
-    <nav class="tabs">
-      <button class="tab active" data-tab="desk">Feed Desk</button>
-      <button class="tab" data-tab="studio">Post Studio</button>
-      <button class="tab" data-tab="substack">Substack Generator</button>
-      <button class="tab" data-tab="scheduler">Scheduler</button>
-      <button class="tab" data-tab="campaigns">Campaigns</button>
-      <button class="tab" data-tab="library">Draft Library</button>
-      <button class="tab" data-tab="growth">Growth Lab</button>
-      <button class="tab" data-tab="settings">Settings</button>
-    </nav>
+  <main class="container">
+    <!-- Panel: Substack Generator (NOT nested inside another panel) -->
+    <section class="panel active" id="panel-substack" data-panel="substack">
+      <div class="panel-header">
+        <h1>Substack Generator</h1>
+        <p class="muted">Dump notes into blocks, assign sections, then generate clean copy per section.</p>
+      </div>
 
-    <!-- Feed Desk -->
-    <section id="desk" class="panel active">
-      <div class="card">
-        <div class="row between">
-          <div>
-            <h2>Feed Desk</h2>
-            <div class="muted small">Pull headlines from RSS feeds. Save “signals” you want to post about.</div>
-          </div>
+      <div class="grid two">
+        <div class="card">
+          <div class="card-title">Issue / Topic</div>
+          <input id="ssIssue" type="text" placeholder="e.g., Jan 20 walkout, ICE violence, local action plan" />
           <div class="row">
-            <input id="rssLimit" type="number" min="3" max="30" value="12" style="max-width:110px" />
-            <button id="loadRssBtn" class="primary">Load headlines</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid2">
-        <div class="card">
-          <div class="row between">
-            <h3>Headlines</h3>
-            <div class="muted small">Click “Save Signal”.</div>
-          </div>
-          <div id="rssCards" class="stack"></div>
-        </div>
-
-        <div class="card">
-          <div class="row between">
-            <h3>Signal Desk</h3>
-            <div class="row">
-              <input id="signalSearch" placeholder="Search saved signals…" style="max-width:260px" />
-              <button id="clearSignalsBtn">Clear signals</button>
-            </div>
-          </div>
-          <div class="muted small">Saved items become fuel for Post Studio and Campaigns.</div>
-          <div id="signalList" class="stack" style="margin-top:10px;"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Post Studio -->
-    <section id="studio" class="panel">
-      <div class="card">
-        <div class="row between">
-          <div>
-            <h2>Post Studio</h2>
-            <div class="muted small">Pick a saved signal (or write a manual idea) → generate Bluesky and Instagram drafts.</div>
-          </div>
-          <div id="studioPills" class="pills"></div>
-        </div>
-
-        <div class="grid2" style="margin-top:12px;">
-          <div>
-            <label>Source</label>
-            <select id="studioSourceMode">
-              <option value="signal" selected>Saved Signal</option>
-              <option value="manual">Manual Idea</option>
-            </select>
-
-            <div id="studioSignalPick">
-              <label>Choose signal</label>
-              <select id="studioSignalSelect"></select>
-              <label>Optional notes (for you)</label>
-              <textarea id="studioNotes" rows="3" placeholder="Why it matters / local angle / what to emphasize…"></textarea>
-            </div>
-
-            <div id="studioManualPick" style="display:none;">
-              <label>Manual idea</label>
-              <textarea id="studioManualText" rows="6" placeholder="Paste your idea, notes, or a link…"></textarea>
-            </div>
-
-            <div class="grid2">
-              <div>
-                <label>Template</label>
-                <select id="studioTemplate"></select>
-              </div>
-              <div>
-                <label>Tone</label>
-                <select id="studioTone">
-                  <option value="plain">Plain</option>
-                  <option value="urgent" selected>Urgent</option>
-                  <option value="angry">Angry</option>
-                  <option value="hopeful">Hopeful</option>
-                </select>
-              </div>
-            </div>
-
-  <section id="studio" class="panel">
-  ... studio UI ...
-</section>
-
-<section id="substack" class="panel">
-  ... substack UI ...
-</section>
-
-  <div class="row" style="margin-top:10px;">
-    <div style="flex:1;">
-      <div class="muted small">Issue / Topic</div>
-      <input id="ssIssue" placeholder="e.g. Jan 20 Walkout + why it matters" />
-    </div>
-    <div>
-      <div class="muted small">Tone</div>
-      <select id="ssTone">
-        <option value="firm">Firm</option>
-        <option value="urgent" selected>Urgent</option>
-        <option value="hopeful">Hopeful</option>
-        <option value="angry">Angry (safe)</option>
-      </select>
-    </div>
-    <div>
-      <div class="muted small">Length</div>
-      <select id="ssLength">
-        <option value="short">Short</option>
-        <option value="medium" selected>Medium</option>
-        <option value="long">Long</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="row" style="margin-top:10px;">
-    <button class="primary" id="ssAddBlock">+ Add another block</button>
-    <button class="primary" id="ssGenerate">Generate sections (AI)</button>
-    <button id="ssCopyAll">Copy all</button>
-  </div>
-
-  <div id="ssStatus" class="muted small" style="margin:8px 0;"></div>
-
-  <div id="ssBlocks" style="margin-top:10px;"></div>
-
-  <div class="sep" style="margin:14px 0;"></div>
-
-  <div class="row between">
-    <div>
-      <b>Output</b>
-      <div class="muted small">Editable + copyable sections</div>
-    </div>
-    <button id="ssGenTitle">Generate subject/title</button>
-  </div>
-
-  <div id="ssOutput" style="margin-top:10px;"></div>
-</section>
-
-            <div class="grid2">
-              <div>
-                <label>Platform</label>
-                <select id="studioPlatform">
-                  <option value="bluesky" selected>Bluesky (300 chars)</option>
-                  <option value="instagram">Instagram caption</option>
-                </select>
-              </div>
-              <div>
-                <label>Draft count</label>
-                <input id="studioCount" type="number" min="1" max="30" value="10" />
-              </div>
-            </div>
-
-            <label>Hashtag pack(s)</label>
-            <div id="packChecks" class="checks"></div>
-
-            <div id="bskyOptions" class="card inner">
-              <h3 style="margin-top:0;">Bluesky options</h3>
-              <div class="grid2">
-                <div>
-                  <label>Link policy</label>
-                  <select id="studioLinkPolicy">
-                    <option value="none">No links</option>
-                    <option value="some" selected>Only draft 1 + last</option>
-                    <option value="every">Every draft</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Optional link override</label>
-                  <input id="studioLink" placeholder="https://mobilize.us/..." />
-                </div>
-              </div>
-            </div>
-
-            <div id="igOptions" class="card inner" style="display:none;">
-              <h3 style="margin-top:0;">Instagram options</h3>
-              <label>Include hashtags as</label>
-              <select id="igTagStyle">
-                <option value="end" selected>At the end</option>
-                <option value="comment">“First comment” block</option>
+            <div class="field">
+              <label for="ssTone">Tone</label>
+              <select id="ssTone">
+                <option value="firm">firm</option>
+                <option value="urgent">urgent</option>
+                <option value="hopeful">hopeful</option>
+                <option value="angry_safe">angry_safe</option>
               </select>
-              <label>Optional CTA line</label>
-              <input id="igCTA" placeholder="Bring a friend. Share this. RSVP in bio." />
             </div>
-
-<div class="row">
-  <button id="genDraftsBtn">Generate (local)</button>
-  <button id="aiDraftsBtn" class="primary">Generate with AI</button>
-  <button id="copyAllDraftsBtn">Copy all</button>
-  <button id="saveDraftsBtn">Save to Library</button>
-</div>
-
-
-<section class="panel" id="scheduler">
-  <div class="row between">
-    <div class="row">
-      <button id="calPrev">◀</button>
-      <b id="calLabel" style="margin:0 10px;"></b>
-      <button id="calNext">▶</button>
-    </div>
-    <div class="row">
-      <input id="calJump" type="month" />
-      <button id="calToday" class="primary">Today</button>
-    </div>
-  </div>
-
-  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
-    <div id="calGrid"></div>
-    <div>
-      <b id="agendaLabel"></b>
-      <div id="agendaList" style="margin-top:10px;"></div>
-    </div>
-  </div>
-</section>
-
-
-          <div>
-            <div class="card inner">
-              <div class="row between">
-                <h3 style="margin:0;">Draft Output</h3>
-                <div class="muted small">Editable + copyable cards.</div>
-              </div>
-              <div id="draftOutput" class="stack" style="margin-top:10px;"></div>
+            <div class="field">
+              <label for="ssLength">Length</label>
+              <select id="ssLength">
+                <option value="short">short</option>
+                <option value="medium" selected>medium</option>
+                <option value="long">long</option>
+              </select>
             </div>
+          </div>
 
-            <div class="card inner">
-              <div class="row between">
-                <h3 style="margin:0;">Link tools</h3>
-                <button id="scrapeBtn">Fetch titles</button>
-              </div>
-              <label>Links (one per line)</label>
-              <textarea id="linksIn" rows="5" placeholder="https://..."></textarea>
-              <div id="scrapeStatus" class="muted small"></div>
-              <div id="scrapeResults" class="stack"></div>
+          <div class="row wrap">
+            <button id="ssAddBlock" class="btn" type="button">+ Add another block</button>
+            <button id="ssGenerate" class="btn primary" type="button">Generate sections (AI)</button>
+            <button id="ssGenTitle" class="btn" type="button">Generate subject/title</button>
+            <button id="ssCopyAll" class="btn" type="button">Copy all</button>
+          </div>
+
+          <div id="ssStatus" class="status">Ready.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">How it works</div>
+          <ul class="bullets">
+            <li>Add blocks of raw info (links + notes).</li>
+            <li>Assign each block to a newsletter section.</li>
+            <li>Generate → one AI call per section.</li>
+            <li>Outputs are plain text for copy/paste.</li>
+          </ul>
+          <div class="hint">
+            Safety rules are enforced in the system prompt: factual, no invented claims, no hate, no calls for violence.
+          </div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="col">
+          <div class="section-title">Blocks</div>
+          <div id="ssBlocks" class="stack"></div>
+        </div>
+
+        <div class="col">
+          <div class="section-title">Outputs</div>
+          <div id="ssOutput" class="stack"></div>
+
+          <div class="section-title" style="margin-top: 16px;">Subject / Title options</div>
+          <div class="card">
+            <div class="row space">
+              <div class="muted">Numbered list only (6 options).</div>
+              <button id="ssCopyTitle" class="btn small" type="button">Copy</button>
             </div>
+            <textarea id="ssTitleOutput" rows="8" placeholder="Click “Generate subject/title” to create options..."></textarea>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Campaigns -->
-    <section id="campaigns" class="panel">
-      <div class="grid2">
-        <div class="card">
-          <h2>Campaign Builder</h2>
-          <div class="muted small">Turn one event into a full posting pack (announcement → reminders → day-of → recap).</div>
-
-          <label>Campaign name</label>
-          <input id="campName" placeholder="Costco Bridge Protest" />
-
-          <div class="grid2">
-            <div>
-              <label>Event date</label>
-              <input id="campDate" type="date" />
-            </div>
-            <div>
-              <label>Event time</label>
-              <input id="campTime" placeholder="2:00PM–4:00PM" />
-            </div>
-          </div>
-
-          <label>Location</label>
-          <input id="campLocation" placeholder="Costco Pedestrian Bridge, Brentwood" />
-
-          <label>RSVP link</label>
-          <input id="campLink" placeholder="https://mobilize.us/..." />
-
-          <label>Focus message</label>
-          <input id="campFocus" placeholder="Remove the Regime" />
-
-          <div class="grid2">
-            <div>
-              <label>Countdown start (days before)</label>
-              <input id="campStartDays" type="number" min="1" max="21" value="7" />
-            </div>
-            <div>
-              <label>Total drafts</label>
-              <input id="campDraftCount" type="number" min="5" max="30" value="10" />
-            </div>
-          </div>
-
-          <label>Platforms</label>
-          <div class="checks">
-            <label class="check"><input type="checkbox" id="campBsky" checked /> Bluesky</label>
-            <label class="check"><input type="checkbox" id="campIg" /> Instagram</label>
-          </div>
-
-          <label>Hashtag pack(s)</label>
-          <div id="campPackChecks" class="checks"></div>
-
-          <div class="row">
-            <button id="genCampaignBtn" class="primary">Generate campaign pack</button>
-            <button id="saveCampaignBtn">Save campaign</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="row between">
-            <h2>Campaign Output</h2>
-            <div class="row">
-              <button id="copyCampaignBtn">Copy all</button>
-            </div>
-          </div>
-          <div id="campaignOutput" class="stack"></div>
-        </div>
+    <!-- Panel: Placeholder -->
+    <section class="panel" id="panel-placeholder" data-panel="placeholder">
+      <div class="panel-header">
+        <h1>Placeholder</h1>
+        <p class="muted">This tab exists only to prove the tab/panel system. No features here.</p>
       </div>
-
       <div class="card">
-        <div class="row between">
-          <h2>Saved Campaigns</h2>
-          <button id="clearCampaignsBtn">Clear campaigns</button>
-        </div>
-        <div id="campaignList" class="stack"></div>
-      </div>
-    </section>
-
-    <!-- Draft Library -->
-    <section id="library" class="panel">
-      <div class="card">
-        <div class="row between">
-          <div>
-            <h2>Draft Library</h2>
-            <div class="muted small">Everything you save from Post Studio and Campaigns. Copy from here anytime.</div>
-          </div>
-          <div class="row">
-            <input id="draftSearch" placeholder="Search drafts…" style="max-width:260px" />
-            <select id="draftFilter" style="max-width:180px;">
-              <option value="all" selected>All</option>
-              <option value="bluesky">Bluesky</option>
-              <option value="instagram">Instagram</option>
-            </select>
-            <button id="clearDraftsBtn">Clear drafts</button>
-          </div>
-        </div>
-      </div>
-      <div id="draftList" class="stack"></div>
-    </section>
-
-    <!-- Growth Lab -->
-    <section id="growth" class="panel">
-      <div class="grid2">
-        <div class="card">
-          <h2>Add metrics</h2>
-          <div class="muted small">Paste a post you published (with hashtags) + enter metrics. We rank tags + templates.</div>
-
-          <label>Paste published post text</label>
-          <textarea id="metricText" rows="6" placeholder="Paste post here…"></textarea>
-
-          <div class="grid3">
-            <div>
-              <label>Likes</label>
-              <input id="metricLikes" type="number" value="0" />
-            </div>
-            <div>
-              <label>Reposts</label>
-              <input id="metricReposts" type="number" value="0" />
-            </div>
-            <div>
-              <label>Replies</label>
-              <input id="metricReplies" type="number" value="0" />
-            </div>
-          </div>
-
-          <label>Platform</label>
-          <select id="metricPlatform">
-            <option value="bluesky" selected>Bluesky</option>
-            <option value="instagram">Instagram</option>
-          </select>
-
-          <label>Template (optional)</label>
-          <select id="metricTemplate"></select>
-
-          <div class="row">
-            <button id="addMetricBtn" class="primary">Add entry</button>
-            <button id="clearMetricsBtn">Clear metrics</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>What’s working</h2>
-          <div class="muted small">Ranked by average score (reposts/replies weighted).</div>
-
-          <h3>Top hashtags</h3>
-          <div id="topTags" class="stack"></div>
-
-          <h3 style="margin-top:14px;">Top templates</h3>
-          <div id="topTemplates" class="stack"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Entries</h2>
-        <div id="metricEntries" class="stack"></div>
-      </div>
-    </section>
-
-    <!-- Settings -->
-    <section id="settings" class="panel">
-      <div class="grid2">
-        <div class="card">
-          <h2>RSS feeds</h2>
-          <div class="muted small">These power Feed Desk. Enable/disable or add new feeds.</div>
-          <textarea id="rssJson" rows="12"></textarea>
-          <div class="row">
-            <button id="saveRssBtn" class="primary">Save</button>
-            <button id="resetRssBtn">Reset</button>
-          </div>
-
-          <hr class="hr" />
-
-          <h2>Hashtag packs</h2>
-          <div class="muted small">Used by Post Studio + Campaigns. One tag per item, no # needed.</div>
-          <textarea id="packsJson" rows="12"></textarea>
-          <div class="row">
-            <button id="savePacksBtn" class="primary">Save</button>
-            <button id="resetPacksBtn">Reset</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Boilerplate</h2>
-          <div class="muted small">Reusable closers + CTA lines for fast generation.</div>
-
-          <label>Default CTAs (one per line)</label>
-          <textarea id="ctasText" rows="8"></textarea>
-
-          <label>Default closers (one per line)</label>
-          <textarea id="closersText" rows="8"></textarea>
-
-          <div class="row">
-            <button id="saveBoilerBtn" class="primary">Save</button>
-            <button id="resetBoilerBtn">Reset</button>
-          </div>
-
-          <hr class="hr" />
-          <h2>Notes</h2>
-          <div class="muted small">
-            Everything saves locally in your browser (localStorage). Export/import moves your data between devices.
-          </div>
-        </div>
+        <div class="card-title">Coming later</div>
+        <p class="muted">Nothing to see yet.</p>
       </div>
     </section>
   </main>
 
-  <script src="{{ request.script_root }}/static/app.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>
