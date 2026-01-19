@@ -9,7 +9,9 @@ const LS_DRAFTS    = "sc_drafts_v1";
 const LS_CAMPAIGNS = "sc_campaigns_v1";
 const LS_METRICS   = "sc_metrics_v1";
 const LS_SCHEDULE = "sc_schedule_v1";
-let schedule = loadJson(LS_SCHEDULE, []);
+const LS_SUBSTACK = "sc_substack_v1";
+let schedule = []; // set after loadJson exists
+
 
 
 
@@ -107,6 +109,18 @@ function toast(msg){
   setTimeout(() => el.className = "toast", 1200);
 }
 
+let substack = loadJson(LS_SUBSTACK, {
+  issue: "",
+  tone: "urgent",
+  length: "medium",
+  blocks: [
+    { id:`ss_${nowMs()}_0`, section:"opening", title:"", links:"", notes:"" }
+  ],
+  outputs: {},   // sectionId -> text
+  titleOptions: ""
+});
+
+
 async function copyToClipboard(text){
   text = text || "";
 
@@ -183,6 +197,8 @@ let signals   = loadJson(LS_SIGNALS, []);
 let drafts    = loadJson(LS_DRAFTS, []);
 let campaigns = loadJson(LS_CAMPAIGNS, []);
 let metrics   = loadJson(LS_METRICS, []);
+schedule = loadJson(LS_SCHEDULE, []);
+
 
 let lastGeneratedDrafts = [];   // unsaved studio output
 let lastCampaignDrafts = [];    // unsaved campaign output
@@ -368,6 +384,230 @@ function renderTemplateSelects(){
 
   studioSel.value = "headline_why";
 }
+
+const SS_SECTIONS = [
+  ["opening", "Opening"],
+  ["democracy_watch", "Democracy Watch"],
+  ["important", "Important (Read First)"],
+  ["community", "Community Section"],
+  ["cta", "Call to Action"],
+  ["resources", "Resources / Know Your Rights (optional)"],
+  ["upcoming", "Upcoming Events (optional)"],
+  ["closing", "Closing (optional)"],
+];
+
+function ssSave(){ saveJson(LS_SUBSTACK, substack); }
+
+function ssSectionGuide(id){
+  switch(id){
+    case "opening": return "2–5 short paragraphs. Hook + why this email exists. Human, direct.";
+    case "democracy_watch": return "2–6 bullets. Each bullet: what happened + why it matters (1 sentence).";
+    case "important": return "Numbered list 3–8 items. Each item: headline-style + 1 sentence. Skimmable.";
+    case "community": return "2–6 bullets about local community actions/wins/needs. Concrete and inviting.";
+    case "cta": return "3–7 bullets with verbs. Include RSVP/show up/share/call reps/donate/join.";
+    case "resources": return "3–8 bullets. Resource name + one line. Include links if provided.";
+    case "upcoming": return "Event bullets with date/time/location/RSVP if provided. If missing, say TBD.";
+    case "closing": return "1–3 short paragraphs: gratitude + reminder + next step.";
+    default: return "Keep it concise and clear.";
+  }
+}
+
+function ssRender(){
+  const blocksWrap = $("ssBlocks");
+  const outWrap = $("ssOutput");
+  if (!blocksWrap || !outWrap) return;
+
+  $("ssIssue").value = substack.issue || "";
+  $("ssTone").value = substack.tone || "urgent";
+  $("ssLength").value = substack.length || "medium";
+
+  // Blocks
+  blocksWrap.innerHTML = "";
+  substack.blocks.forEach((b, idx) => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="row between">
+        <div class="meta">
+          <span class="pill">Block ${idx+1}</span>
+          <select class="ssSection"></select>
+          <input class="ssTitle" placeholder="(optional) label" style="min-width:220px;" />
+        </div>
+        <div class="row">
+          <button class="ssUp">↑</button>
+          <button class="ssDown">↓</button>
+          <button class="danger ssDel">Delete</button>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:10px; gap:10px;">
+        <div>
+          <div class="muted small">Links (one per line)</div>
+          <textarea class="ssLinks" rows="3" placeholder="https://..."></textarea>
+        </div>
+        <div>
+          <div class="muted small">Raw notes</div>
+          <textarea class="ssNotes" rows="4" placeholder="Dump your thoughts here..."></textarea>
+        </div>
+      </div>
+    `;
+
+    const sel = div.querySelector(".ssSection");
+    sel.innerHTML = SS_SECTIONS.map(([id,name]) =>
+      `<option value="${id}" ${id===b.section?"selected":""}>${name}</option>`
+    ).join("");
+
+    div.querySelector(".ssTitle").value = b.title || "";
+    div.querySelector(".ssLinks").value = b.links || "";
+    div.querySelector(".ssNotes").value = b.notes || "";
+
+    sel.onchange = () => { b.section = sel.value; ssSave(); };
+    div.querySelector(".ssTitle").oninput = (e)=>{ b.title = e.target.value; ssSave(); };
+    div.querySelector(".ssLinks").oninput = (e)=>{ b.links = e.target.value; ssSave(); };
+    div.querySelector(".ssNotes").oninput = (e)=>{ b.notes = e.target.value; ssSave(); };
+
+    div.querySelector(".ssDel").onclick = () => {
+      substack.blocks = substack.blocks.filter(x => x.id !== b.id);
+      if (!substack.blocks.length){
+        substack.blocks.push({ id:`ss_${nowMs()}_0`, section:"opening", title:"", links:"", notes:"" });
+      }
+      ssSave(); ssRender();
+    };
+    div.querySelector(".ssUp").onclick = () => {
+      if (idx===0) return;
+      [substack.blocks[idx-1], substack.blocks[idx]] = [substack.blocks[idx], substack.blocks[idx-1]];
+      ssSave(); ssRender();
+    };
+    div.querySelector(".ssDown").onclick = () => {
+      if (idx===substack.blocks.length-1) return;
+      [substack.blocks[idx+1], substack.blocks[idx]] = [substack.blocks[idx], substack.blocks[idx+1]];
+      ssSave(); ssRender();
+    };
+
+    blocksWrap.appendChild(div);
+  });
+
+  // Outputs
+  outWrap.innerHTML = "";
+  SS_SECTIONS.forEach(([id, name]) => {
+    const text = substack.outputs?.[id] || "";
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="row between">
+        <div class="meta">
+          <span class="pill">${escapeHtml(name)}</span>
+          <span class="pill ${text ? "ok":"warn"}">${text ? "ready":"empty"}</span>
+        </div>
+        <div class="row">
+          <button class="copy">Copy</button>
+        </div>
+      </div>
+      <textarea rows="7" class="ssOut"></textarea>
+    `;
+    const ta = div.querySelector(".ssOut");
+    ta.value = text;
+    ta.oninput = () => { substack.outputs[id] = ta.value; ssSave(); };
+
+    div.querySelector(".copy").onclick = () => copyToClipboard(ta.value || "");
+    outWrap.appendChild(div);
+  });
+
+  // optional: show titleOptions somewhere if you add a textbox
+}
+
+async function ssGenerate(){
+  const usable = substack.blocks.filter(b => (b.notes||"").trim() || (b.links||"").trim());
+  if (!usable.length) return alert("Add at least one block with notes or links.");
+
+  $("ssStatus").textContent = "Generating sections…";
+  $("ssGenerate").disabled = true;
+
+  try{
+    // group by section
+    const by = {};
+    usable.forEach(b => {
+      if (!by[b.section]) by[b.section] = [];
+      by[b.section].push(b);
+    });
+
+    const system = [
+      "You are an editor for a Substack newsletter for a local pro-democracy community group.",
+      "Be factual. Do NOT invent names, dates, places, or claims not present in the input.",
+      "No hate. No calls for violence. Keep language firm but safe.",
+      "Output clean text for Substack. Use bullets/numbering when requested."
+    ].join(" ");
+
+    for (const sectionId of Object.keys(by)){
+      const items = by[sectionId];
+      const raw = items.map((b,i)=> {
+        const t = (b.title||"").trim();
+        const L = (b.links||"").trim();
+        const N = (b.notes||"").trim();
+        return [
+          `ITEM ${i+1}${t?` — ${t}`:""}`,
+          L ? `Links:\n${L}` : "",
+          N ? `Notes:\n${N}` : ""
+        ].filter(Boolean).join("\n");
+      }).join("\n\n---\n\n");
+
+      const user = [
+        substack.issue ? `ISSUE: ${substack.issue}` : "",
+        `TONE: ${substack.tone}`,
+        `LENGTH: ${substack.length}`,
+        `SECTION: ${SS_SECTIONS.find(x=>x[0]===sectionId)?.[1] || sectionId}`,
+        "",
+        "SECTION RULES:",
+        ssSectionGuide(sectionId),
+        "",
+        "RAW INPUT:",
+        raw
+      ].filter(Boolean).join("\n");
+
+      const out = stripCodeFences(await aiGenerate(system, user)); // uses your existing aiGenerate()
+      substack.outputs[sectionId] = (out || "").trim();
+      ssSave();
+      ssRender();
+    }
+
+    $("ssStatus").textContent = "Done.";
+    toast("Sections generated");
+  } catch(e){
+    $("ssStatus").textContent = "";
+    alert("Substack generation failed: " + (e?.message || e));
+  } finally {
+    $("ssGenerate").disabled = false;
+  }
+}
+
+async function ssGenerateTitle(){
+  const combined = SS_SECTIONS.map(([id,name]) => {
+    const t = (substack.outputs?.[id] || "").trim();
+    return t ? `## ${name}\n${t}` : "";
+  }).filter(Boolean).join("\n\n");
+
+  if (!combined) return alert("Generate sections first.");
+
+  $("ssStatus").textContent = "Generating title options…";
+
+  try{
+    const system = "You write Substack subject lines. Return only a numbered list of 6 options. No extra commentary.";
+    const user = [
+      substack.issue ? `ISSUE: ${substack.issue}` : "",
+      "Generate 6 subject line options. Punchy, not clickbait. Reflect urgency and local organizing.",
+      "",
+      combined
+    ].join("\n");
+
+    const out = stripCodeFences(await aiGenerate(system, user));
+    await copyToClipboard(out.trim());
+    toast("Title options copied");
+    $("ssStatus").textContent = "Title options copied to clipboard.";
+  } catch(e){
+    $("ssStatus").textContent = "";
+    alert("Title generation failed: " + (e?.message || e));
+  }
+}
+
 
 function renderStudioSignalSelect(){
   const sel = $("studioSignalSelect");
@@ -1033,23 +1273,6 @@ const fixed = arr
 }
 
 
-function safeJsonParse(maybeJson){
-  const raw = stripCodeFences(maybeJson);
-  try { return JSON.parse(raw); } catch {}
-  try {
-  const parsed = JSON.parse(raw);
-  return parsed;
-} catch {}
-  // try to salvage if model wrapped JSON in extra text
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start !== -1 && end !== -1 && end > start) {
-    const slice = raw.slice(start, end+1);
-    return JSON.parse(slice);
-  }
-  throw new Error("Model did not return valid JSON.");
-}
-
 function clampBsky(text, max=300){
   text = String(text || "").trim();
   if (text.length <= max) return text;
@@ -1567,6 +1790,26 @@ $("calJump").onchange = () => {
   $("copyAllDraftsBtn").onclick = copyAllStudioDrafts;
   $("saveDraftsBtn").onclick = saveStudioDraftsToLibrary;
 
+// Substack
+$("ssAddBlock").onclick = () => {
+  substack.blocks.push({ id:`ss_${nowMs()}_${Math.random().toString(16).slice(2)}`, section:"democracy_watch", title:"", links:"", notes:"" });
+  ssSave(); ssRender();
+};
+$("ssGenerate").onclick = ssGenerate;
+$("ssCopyAll").onclick = () => {
+  const joined = SS_SECTIONS.map(([id,name]) => {
+    const t = (substack.outputs?.[id]||"").trim();
+    return t ? `## ${name}\n\n${t}` : "";
+  }).filter(Boolean).join("\n\n---\n\n");
+  copyToClipboard(joined);
+};
+$("ssGenTitle").onclick = ssGenerateTitle;
+
+$("ssIssue").oninput = () => { substack.issue = $("ssIssue").value; ssSave(); };
+$("ssTone").onchange = () => { substack.tone = $("ssTone").value; ssSave(); };
+$("ssLength").onchange = () => { substack.length = $("ssLength").value; ssSave(); };
+
+
   // packs checks update pills on click
   document.addEventListener("change", (e) => {
     if (e.target && String(e.target.id || "").startsWith("pack_")) updateStudioPills();
@@ -1795,6 +2038,7 @@ function bootRenders(){
   renderTemplateSelects();
   renderPackChecks();
   renderSettings();
+  ssRender();
 
   renderSignals();
   renderStudioSignalSelect();

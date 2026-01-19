@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Substack Generator</title>
+  <style>
+    :root{
+      --bg:#0b0e14; --card:#111827; --muted:#9ca3af; --text:#e5e7eb;
+      --line:#1f2937; --btn:#1d4ed8; --btn2:#0f172a; --bad:#7f1d1d;
+      --ok:#065f46;
+    }
+    body{ margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    .wrap{ max-width:1100px; margin:0 auto; padding:18px; }
+    h1{ font-size:20px; margin:0 0 10px; }
+    .muted{ color:var(--muted); }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .between{ justify-content:space-between; }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02));
+      border:1px solid var(--line); border-radius:14px; padding:14px; margin:12px 0;
+    }
+    .grid{ display:grid; gap:10px; }
+    @media(min-width:900px){ .grid-2{ grid-template-columns:1fr 1fr; } }
+    input, select, textarea, button{
+      font:inherit; color:var(--text);
+      background:#0b1220; border:1px solid var(--line); border-radius:10px;
+      padding:10px;
+    }
+    textarea{ width:100%; min-height:110px; resize:vertical; }
+    button{ cursor:pointer; }
+    button.primary{ background:var(--btn); border-color:#1e40af; }
+    button.ghost{ background:transparent; }
+    button.danger{ background:#1f0b0b; border-color:#3f1d1d; color:#fecaca; }
+    .pill{ display:inline-block; padding:3px 8px; border-radius:999px; border:1px solid var(--line); background:#0b1220; font-size:12px; }
+    .pill.ok{ border-color:#064e3b; color:#a7f3d0; }
+    .pill.warn{ border-color:#7c2d12; color:#fdba74; }
+    .small{ font-size:12px; }
+    .blockHead{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .sep{ height:1px; background:var(--line); margin:12px 0; }
+    .toast{ position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+      padding:10px 12px; background:#0b1220; border:1px solid var(--line);
+      border-radius:12px; opacity:0; transition:opacity .18s; pointer-events:none;
+    }
+    .toast.show{ opacity:1; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="row between">
+    <div>
+      <h1>Substack Generator</h1>
+      <div class="muted small">Dump your raw notes into blocks, assign a section, then generate clean copy per section.</div>
+    </div>
+    <div class="row">
+      <button id="exportBtn" class="ghost">Export</button>
+      <button id="importBtn" class="ghost">Import</button>
+      <button id="resetBtn" class="danger">Reset</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between">
+      <div class="row">
+        <span class="pill">Issue</span>
+        <input id="issueName" placeholder="e.g., Jan 19 — ICE escalation / local organizing" style="min-width:320px;">
+      </div>
+      <div class="row">
+        <span class="pill">Voice</span>
+        <select id="voice">
+          <option value="firm">Firm + direct</option>
+          <option value="urgent">Urgent</option>
+          <option value="hopeful">Hopeful + mobilizing</option>
+          <option value="angry">Angry (no threats, no hate)</option>
+        </select>
+        <span class="pill">Length</span>
+        <select id="length">
+          <option value="short">Short</option>
+          <option value="medium" selected>Medium</option>
+          <option value="long">Long</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="row between">
+      <div class="row">
+        <button id="addBlockBtn" class="primary">+ Add another block</button>
+        <span class="muted small">Tip: one idea per block.</span>
+      </div>
+      <div class="row">
+        <button id="generateBtn" class="primary">Generate newsletter</button>
+      </div>
+    </div>
+
+    <div id="blocks"></div>
+  </div>
+
+  <div class="card" id="outputCard" style="display:none;">
+    <div class="row between">
+      <div>
+        <b>Generated Output</b>
+        <div class="muted small">Edit freely. Copy section-by-section into Substack.</div>
+      </div>
+      <div class="row">
+        <button id="genTitleBtn">Generate Title</button>
+        <button id="copyAllBtn" class="primary">Copy all</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="grid grid-2" id="outputs"></div>
+
+    <div class="sep"></div>
+
+    <div class="row between">
+      <div>
+        <b>Images (optional)</b>
+        <div class="muted small">These are placeholders you can use when inserting images later.</div>
+      </div>
+      <button id="addImagePlaceholderBtn">+ Add image placeholder</button>
+    </div>
+    <div id="imagePlaceholders" class="grid" style="margin-top:10px;"></div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast">Copied</div>
+
+<script>
+/* ==========================
+   Substack Generator (local)
+   ========================== */
+
+const LS_KEY = "substack_gen_v1";
+
+const SECTIONS = [
+  { id:"opening",        name:"Opening" },
+  { id:"quick_context",  name:"Quick Context (optional)" },
+  { id:"democracy_watch",name:"Democracy Watch" },
+  { id:"important",      name:"Important (Read First)" },
+  { id:"community",      name:"Community Section" },
+  { id:"resources",      name:"Resources / Know Your Rights (optional)" },
+  { id:"upcoming",       name:"Upcoming Events (optional)" },
+  { id:"share",          name:"What to Share (optional)" },
+  { id:"cta",            name:"Call to Action" },
+  { id:"closing",        name:"Closing (optional)" },
+];
+
+function $(id){ return document.getElementById(id); }
+
+function toast(msg){
+  const el = $("toast");
+  el.textContent = msg;
+  el.className = "toast show";
+  setTimeout(()=> el.className="toast", 900);
+}
+
+async function copyToClipboard(text){
+  try{
+    if (navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      toast("Copied!");
+      return true;
+    }
+  }catch{}
+  // fallback
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position="fixed"; ta.style.left="-9999px"; ta.style.top="0";
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+  toast(ok ? "Copied!" : "Copy failed");
+  return ok;
+}
+
+function nowMs(){ return Date.now(); }
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  }catch{ return null; }
+}
+
+function saveState(){
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+}
+
+function uid(prefix="b"){
+  return `${prefix}_${nowMs()}_${Math.random().toString(16).slice(2)}`;
+}
+
+// ------- state -------
+let state = loadState() || {
+  issueName: "",
+  voice: "firm",
+  length: "medium",
+  blocks: [
+    { id: uid("blk"), section:"opening", title:"", links:"", notes:"" },
+  ],
+  outputs: {},          // sectionId -> generated text
+  images: []            // placeholder lines
+};
+
+function sectionOptionsHtml(selectedId){
+  return SECTIONS.map(s => {
+    const sel = s.id === selectedId ? "selected" : "";
+    return `<option value="${s.id}" ${sel}>${s.name}</option>`;
+  }).join("");
+}
+
+// ------- UI render -------
+function renderBlocks(){
+  const wrap = $("blocks");
+  wrap.innerHTML = "";
+
+  state.blocks.forEach((b, idx) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.style.marginTop = "12px";
+
+    div.innerHTML = `
+      <div class="row between">
+        <div class="blockHead">
+          <span class="pill">Block ${idx+1}</span>
+          <select class="sectionSel">${sectionOptionsHtml(b.section)}</select>
+          <input class="titleIn" placeholder="(optional) short label for this block" value="${escapeAttr(b.title||"")}" style="min-width:260px;">
+        </div>
+        <div class="row">
+          <button class="upBtn">↑</button>
+          <button class="downBtn">↓</button>
+          <button class="delBtn danger">Delete</button>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="grid grid-2">
+        <div>
+          <div class="muted small">Links (one per line)</div>
+          <textarea class="linksIn" rows="4" placeholder="https://...">${escapeHtml(b.links||"")}</textarea>
+        </div>
+        <div>
+          <div class="muted small">Raw notes (dump everything here)</div>
+          <textarea class="notesIn" rows="4" placeholder="What you want to say, quotes, bullets, reminders...">${escapeHtml(b.notes||"")}</textarea>
+        </div>
+      </div>
+    `;
+
+    const sectionSel = div.querySelector(".sectionSel");
+    const titleIn = div.querySelector(".titleIn");
+    const linksIn = div.querySelector(".linksIn");
+    const notesIn = div.querySelector(".notesIn");
+
+    sectionSel.onchange = () => { b.section = sectionSel.value; saveState(); };
+    titleIn.oninput = () => { b.title = titleIn.value; saveState(); };
+    linksIn.oninput = () => { b.links = linksIn.value; saveState(); };
+    notesIn.oninput = () => { b.notes = notesIn.value; saveState(); };
+
+    div.querySelector(".delBtn").onclick = () => {
+      state.blocks = state.blocks.filter(x => x.id !== b.id);
+      if (!state.blocks.length){
+        state.blocks.push({ id: uid("blk"), section:"opening", title:"", links:"", notes:"" });
+      }
+      saveState(); renderBlocks();
+    };
+
+    div.querySelector(".upBtn").onclick = () => {
+      if (idx === 0) return;
+      const arr = state.blocks.slice();
+      [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
+      state.blocks = arr; saveState(); renderBlocks();
+    };
+
+    div.querySelector(".downBtn").onclick = () => {
+      if (idx === state.blocks.length-1) return;
+      const arr = state.blocks.slice();
+      [arr[idx+1], arr[idx]] = [arr[idx], arr[idx+1]];
+      state.blocks = arr; saveState(); renderBlocks();
+    };
+
+    wrap.appendChild(div);
+  });
+}
+
+function escapeHtml(str){
+  return String(str ?? "")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function escapeAttr(str){ return escapeHtml(str).replaceAll("\n"," "); }
+
+function renderOutputs(){
+  const card = $("outputCard");
+  const wrap = $("outputs");
+
+  const hasAny = state.outputs && Object.keys(state.outputs).length;
+  card.style.display = hasAny ? "" : "none";
+
+  wrap.innerHTML = "";
+
+  SECTIONS.forEach(s => {
+    const text = state.outputs?.[s.id] || "";
+    const div = document.createElement("div");
+    div.className = "card";
+
+    div.innerHTML = `
+      <div class="row between">
+        <div>
+          <b>${escapeHtml(s.name)}</b>
+          <span class="pill ${text ? "ok" : "warn"}" style="margin-left:8px;">${text ? "ready" : "empty"}</span>
+        </div>
+        <div class="row">
+          <button class="copyBtn">Copy</button>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <textarea class="outTa" rows="10" placeholder="(Nothing generated yet for this section)">${escapeHtml(text)}</textarea>
+    `;
+
+    const ta = div.querySelector(".outTa");
+    ta.oninput = () => { state.outputs[s.id] = ta.value; saveState(); };
+
+    div.querySelector(".copyBtn").onclick = () => copyToClipboard(ta.value || "");
+
+    wrap.appendChild(div);
+  });
+
+  renderImages();
+}
+
+function renderImages(){
+  const wrap = $("imagePlaceholders");
+  wrap.innerHTML = "";
+
+  if (!state.images.length){
+    wrap.innerHTML = `<div class="muted small">No image placeholders yet.</div>`;
+    return;
+  }
+
+  state.images.forEach((x, idx) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div class="row between">
+        <b>Image ${idx+1}</b>
+        <button class="danger del">Delete</button>
+      </div>
+      <div class="sep"></div>
+      <input class="img" value="${escapeAttr(x)}" placeholder="e.g., [IMAGE: Protest photo — Brentwood Costco bridge]">
+    `;
+    const inp = div.querySelector(".img");
+    inp.oninput = () => { state.images[idx] = inp.value; saveState(); };
+    div.querySelector(".del").onclick = () => { state.images.splice(idx,1); saveState(); renderImages(); };
+    wrap.appendChild(div);
+  });
+}
+
+// ------- LLM helpers -------
+function stripCodeFences(s){
+  s = String(s || "").trim();
+  if (s.startsWith("```")) {
+    s = s.replace(/^```[a-zA-Z]*\n?/, "").replace(/```$/, "").trim();
+  }
+  return s;
+}
+
+async function llmChat(system, user){
+  const r = await fetch("/api/ai/chat", {
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      messages: [
+        { role:"system", content: system },
+        { role:"user", content: user }
+      ],
+      temperature: 0.7,
+      num_predict: 900
+    })
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const data = await r.json();
+  return data?.message?.content || "";
+}
+
+// Section-specific “frame”
+function sectionStyleGuide(sectionId){
+  switch(sectionId){
+    case "opening":
+      return "Write 2–5 short paragraphs. Hook + why the email exists. Be human and direct. No long history.";
+    case "quick_context":
+      return "Write 1–3 sentences that set urgency and context. Keep it tight.";
+    case "democracy_watch":
+      return "Write a short section with 2–5 bullet points. Each bullet: what happened + why it matters (1 sentence).";
+    case "important":
+      return "Write a numbered list (3–8 items). Each item: headline-style + 1 sentence. This is 'read first'.";
+    case "community":
+      return "Write 2–6 bullets about local community, mutual aid, meetings, wins, needs. Positive but real.";
+    case "resources":
+      return "Write 3–8 bullets. Each: resource name + one-line description. Include links if provided.";
+    case "upcoming":
+      return "Write event bullets. Include date/time/location/RSVP if present. If missing, keep it as 'TBD' explicitly.";
+    case "share":
+      return "Provide 1–3 shareable snippets people can repost. Keep each under ~280 chars if possible.";
+    case "cta":
+      return "Write a clear call to action section: 3–7 bullets. Use verbs. Include 'share/RSVP/show up/call reps/donate/join'.";
+    case "closing":
+      return "Write 1–3 short paragraphs. Gratitude + reminder + next touchpoint.";
+    default:
+      return "Write a concise section. Use plain language, keep it readable.";
+  }
+}
+
+function lengthGuide(len){
+  if (len === "short") return "Keep it short.";
+  if (len === "long") return "You can be fuller, but stay skimmable.";
+  return "Medium length, skimmable.";
+}
+
+// ------- Generate -------
+async function generateNewsletter(){
+  // basic validation
+  const usableBlocks = state.blocks.filter(b => (b.notes||"").trim() || (b.links||"").trim());
+  if (!usableBlocks.length){
+    alert("Add at least one block with notes or links.");
+    return;
+  }
+
+  $("generateBtn").disabled = true;
+  $("generateBtn").textContent = "Generating…";
+
+  try{
+    // group blocks by section
+    const bySection = {};
+    usableBlocks.forEach(b => {
+      if (!bySection[b.section]) bySection[b.section] = [];
+      bySection[b.section].push(b);
+    });
+
+    const issue = ($("issueName").value || "").trim();
+    const voice = $("voice").value;
+    const len = $("length").value;
+
+    const system = [
+      "You are an editor for a Substack newsletter for a local pro-democracy community group.",
+      "Be factual. Do NOT invent names, dates, places, or claims not present in the input.",
+      "No hate. No calls for violence. Keep language firm but safe.",
+      "Output should be clean text for Substack. Use bullets/numbering when requested."
+    ].join(" ");
+
+    // generate each section present in blocks
+    const outputs = { ...state.outputs };
+
+    for (const sectionId of Object.keys(bySection)){
+      const items = bySection[sectionId];
+
+      const raw = items.map((b, i) => {
+        const title = (b.title||"").trim();
+        const links = (b.links||"").trim();
+        const notes = (b.notes||"").trim();
+        return [
+          `ITEM ${i+1}${title ? ` — ${title}` : ""}`,
+          links ? `Links:\n${links}` : "",
+          notes ? `Notes:\n${notes}` : ""
+        ].filter(Boolean).join("\n");
+      }).join("\n\n---\n\n");
+
+      const user = [
+        issue ? `ISSUE: ${issue}` : "",
+        `VOICE: ${voice}`,
+        `LENGTH: ${len}`,
+        `SECTION: ${SECTIONS.find(s=>s.id===sectionId)?.name || sectionId}`,
+        "",
+        "SECTION RULES:",
+        sectionStyleGuide(sectionId),
+        lengthGuide(len),
+        "",
+        "RAW INPUT:",
+        raw
+      ].filter(Boolean).join("\n");
+
+      const out = stripCodeFences(await llmChat(system, user)).trim();
+      outputs[sectionId] = out;
+    }
+
+    // ensure required sections exist even if user didn't add blocks for them
+    const required = ["opening","democracy_watch","important","community","cta"];
+    required.forEach(id => { if (!outputs[id]) outputs[id] = ""; });
+
+    state.outputs = outputs;
+    saveState();
+    renderOutputs();
+    toast("Generated!");
+    window.scrollTo({ top: document.body.scrollHeight, behavior:"smooth" });
+
+  }catch(e){
+    alert("Generate failed: " + (e?.message || e));
+  }finally{
+    $("generateBtn").disabled = false;
+    $("generateBtn").textContent = "Generate newsletter";
+  }
+}
+
+// Title generator uses all section outputs
+async function generateTitle(){
+  const combined = SECTIONS.map(s => {
+    const t = (state.outputs?.[s.id] || "").trim();
+    return t ? `## ${s.name}\n${t}` : "";
+  }).filter(Boolean).join("\n\n");
+
+  if (!combined){
+    alert("Generate the newsletter first.");
+    return;
+  }
+
+  $("genTitleBtn").disabled = true;
+  $("genTitleBtn").textContent = "Generating…";
+
+  try{
+    const issue = ($("issueName").value || "").trim();
+    const system = "You write Substack subject lines. Return ONLY the subject line text. No quotes. No extra words.";
+    const user = [
+      issue ? `ISSUE: ${issue}` : "",
+      "Generate 6 subject line options. Keep them punchy. Avoid clickbait. Reflect the most urgent themes.",
+      "Format as a numbered list 1-6.",
+      "",
+      "CONTENT:",
+      combined
+    ].join("\n");
+
+    const out = stripCodeFences(await llmChat(system, user)).trim();
+    await copyToClipboard(out);
+    alert("Subject line options copied to clipboard.");
+  }catch(e){
+    alert("Title generation failed: " + (e?.message || e));
+  }finally{
+    $("genTitleBtn").disabled = false;
+    $("genTitleBtn").textContent = "Generate Title";
+  }
+}
+
+function copyAll(){
+  const parts = SECTIONS.map(s => {
+    const t = (state.outputs?.[s.id] || "").trim();
+    if (!t) return "";
+    return `## ${s.name}\n\n${t}`;
+  }).filter(Boolean);
+
+  const imgs = (state.images||[]).filter(Boolean).map(x => `\n${x}`).join("");
+  const joined = parts.join("\n\n---\n\n") + (imgs ? `\n\n---\n\n${imgs}\n` : "");
+  copyToClipboard(joined.trim());
+}
+
+// ------- export/import/reset -------
+function exportAll(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `substack-generator-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importAll(){
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json";
+  input.onchange = async () => {
+    const f = input.files?.[0];
+    if (!f) return;
+    const txt = await f.text();
+    try{
+      const obj = JSON.parse(txt);
+      state = obj;
+      saveState();
+      boot();
+      toast("Imported");
+    }catch{
+      alert("Invalid file.");
+    }
+  };
+  input.click();
+}
+
+function resetAll(){
+  if (!confirm("Reset all local data for this Substack Generator?")) return;
+  localStorage.removeItem(LS_KEY);
+  state = {
+    issueName: "",
+    voice: "firm",
+    length: "medium",
+    blocks: [{ id: uid("blk"), section:"opening", title:"", links:"", notes:"" }],
+    outputs: {},
+    images: []
+  };
+  saveState();
+  boot();
+}
+
+// ------- boot -------
+function boot(){
+  $("issueName").value = state.issueName || "";
+  $("voice").value = state.voice || "firm";
+  $("length").value = state.length || "medium";
+
+  renderBlocks();
+  renderOutputs();
+}
+
+$("issueName").oninput = () => { state.issueName = $("issueName").value; saveState(); };
+$("voice").onchange = () => { state.voice = $("voice").value; saveState(); };
+$("length").onchange = () => { state.length = $("length").value; saveState(); };
+
+$("addBlockBtn").onclick = () => {
+  state.blocks.push({ id: uid("blk"), section:"democracy_watch", title:"", links:"", notes:"" });
+  saveState(); renderBlocks();
+};
+
+$("generateBtn").onclick = generateNewsletter;
+
+$("genTitleBtn").onclick = generateTitle;
+$("copyAllBtn").onclick = copyAll;
+
+$("addImagePlaceholderBtn").onclick = () => {
+  state.images.push("[IMAGE: add description here]");
+  saveState(); renderImages();
+};
+
+$("exportBtn").onclick = exportAll;
+$("importBtn").onclick = importAll;
+$("resetBtn").onclick = resetAll;
+
+boot();
+</script>
+</body>
+</html>

@@ -26,6 +26,7 @@
     <nav class="tabs">
       <button class="tab active" data-tab="desk">Feed Desk</button>
       <button class="tab" data-tab="studio">Post Studio</button>
+      <button class="tab" data-tab="substack">Substack Generator</button>
       <button class="tab" data-tab="campaigns">Campaigns</button>
       <button class="tab" data-tab="library">Draft Library</button>
       <button class="tab" data-tab="growth">Growth Lab</button>
@@ -117,6 +118,57 @@
               </div>
             </div>
 
+            <section class="panel" id="substack">
+  <h2>Substack Generator</h2>
+  <div class="muted">Add blocks, assign them to sections, then generate clean copy per section.</div>
+
+  <div class="row" style="margin-top:10px;">
+    <div style="flex:1;">
+      <div class="muted small">Issue / Topic</div>
+      <input id="ssIssue" placeholder="e.g. Jan 20 Walkout + why it matters" />
+    </div>
+    <div>
+      <div class="muted small">Tone</div>
+      <select id="ssTone">
+        <option value="firm">Firm</option>
+        <option value="urgent" selected>Urgent</option>
+        <option value="hopeful">Hopeful</option>
+        <option value="angry">Angry (safe)</option>
+      </select>
+    </div>
+    <div>
+      <div class="muted small">Length</div>
+      <select id="ssLength">
+        <option value="short">Short</option>
+        <option value="medium" selected>Medium</option>
+        <option value="long">Long</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:10px;">
+    <button class="primary" id="ssAddBlock">+ Add another block</button>
+    <button class="primary" id="ssGenerate">Generate sections (AI)</button>
+    <button id="ssCopyAll">Copy all</button>
+  </div>
+
+  <div id="ssStatus" class="muted small" style="margin:8px 0;"></div>
+
+  <div id="ssBlocks" style="margin-top:10px;"></div>
+
+  <div class="sep" style="margin:14px 0;"></div>
+
+  <div class="row between">
+    <div>
+      <b>Output</b>
+      <div class="muted small">Editable + copyable sections</div>
+    </div>
+    <button id="ssGenTitle">Generate subject/title</button>
+  </div>
+
+  <div id="ssOutput" style="margin-top:10px;"></div>
+</section>
+
             <div class="grid2">
               <div>
                 <label>Platform</label>
@@ -169,6 +221,30 @@
   <button id="copyAllDraftsBtn">Copy all</button>
   <button id="saveDraftsBtn">Save to Library</button>
 </div>
+
+<button class="tab" data-tab="scheduler">Scheduler</button>
+
+<section class="panel" id="scheduler">
+  <div class="row between">
+    <div class="row">
+      <button id="calPrev">◀</button>
+      <b id="calLabel" style="margin:0 10px;"></b>
+      <button id="calNext">▶</button>
+    </div>
+    <div class="row">
+      <input id="calJump" type="month" />
+      <button id="calToday" class="primary">Today</button>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
+    <div id="calGrid"></div>
+    <div>
+      <b id="agendaLabel"></b>
+      <div id="agendaList" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</section>
 
 
           <div>
