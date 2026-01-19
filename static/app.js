@@ -10,6 +10,7 @@ const LS_CAMPAIGNS = "sc_campaigns_v1";
 const LS_METRICS   = "sc_metrics_v1";
 const LS_SCHEDULE = "sc_schedule_v1";
 const LS_SUBSTACK = "sc_substack_v1";
+let substack = null; // loaded in init after loadJson exists
 let schedule = []; // set after loadJson exists
 
 
@@ -109,6 +110,9 @@ function toast(msg){
   setTimeout(() => el.className = "toast", 1200);
 }
 
+substack = loadJson(LS_SUBSTACK, { blocks: [] });
+
+
 let substack = loadJson(LS_SUBSTACK, {
   issue: "",
   tone: "urgent",
@@ -180,6 +184,112 @@ function escapeHtml(str){
     .replaceAll("'","&#039;");
 }
 function escapeAttr(str){ return escapeHtml(str).replaceAll("\n"," "); }
+
+
+function ssEnsure(){
+  if (!substack) substack = { blocks: [] };
+  if (!Array.isArray(substack.blocks)) substack.blocks = [];
+}
+
+function ssAddBlock(){
+  ssEnsure();
+  substack.blocks.unshift({
+    id: `ss_${nowMs()}_${Math.random().toString(16).slice(2)}`,
+    section: "opening",     // opening | democracy_watch | important | community | call_to_action | etc
+    raw: "",
+    link1: "",
+    link2: "",
+    output: "",
+    createdAt: nowMs()
+  });
+  saveJson(LS_SUBSTACK, substack);
+  ssRender();
+}
+
+function ssRender(){
+  ssEnsure();
+
+  const list = $("ssBlocks");
+  if (!list) return; // panel not on page or id mismatch
+
+  if (!substack.blocks.length){
+    list.innerHTML = `<div class="item"><div class="muted">No blocks yet. Click “Add another block”.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  substack.blocks.forEach((b, idx) => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="row between">
+        <div class="meta">
+          <span class="pill">Block ${substack.blocks.length - idx}</span>
+          <span class="pill">${escapeHtml(b.section)}</span>
+        </div>
+        <div class="row">
+          <button class="gen primary">Generate</button>
+          <button class="del danger">Delete</button>
+        </div>
+      </div>
+
+      <div class="row" style="gap:10px; align-items:center; margin-top:10px;">
+        <label class="muted small" style="min-width:120px;">Section</label>
+        <select class="section">
+          <option value="opening">Opening</option>
+          <option value="democracy_watch">Democracy Watch</option>
+          <option value="important">Important (Read First)</option>
+          <option value="community">Community</option>
+          <option value="call_to_action">Call to Action</option>
+          <option value="closing">Closing</option>
+        </select>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="muted small">Info dump</div>
+        <textarea class="raw" rows="4" placeholder="Dump what you want to cover…">${escapeHtml(b.raw || "")}</textarea>
+      </div>
+
+      <div class="row" style="gap:10px; margin-top:10px;">
+        <input class="link1" placeholder="Link 1 (optional)" value="${escapeAttr(b.link1 || "")}" />
+        <input class="link2" placeholder="Link 2 (optional)" value="${escapeAttr(b.link2 || "")}" />
+      </div>
+
+      <div style="margin-top:10px;">
+        <div class="muted small">Generated output</div>
+        <textarea class="out" rows="4" placeholder="Click Generate…">${escapeHtml(b.output || "")}</textarea>
+      </div>
+    `;
+
+    // set dropdown value
+    const sel = div.querySelector(".section");
+    sel.value = b.section || "opening";
+
+    // persist edits
+    sel.onchange = () => { b.section = sel.value; saveJson(LS_SUBSTACK, substack); ssRender(); };
+    div.querySelector(".raw").oninput = (e) => { b.raw = e.target.value; saveJson(LS_SUBSTACK, substack); };
+    div.querySelector(".link1").oninput = (e) => { b.link1 = e.target.value; saveJson(LS_SUBSTACK, substack); };
+    div.querySelector(".link2").oninput = (e) => { b.link2 = e.target.value; saveJson(LS_SUBSTACK, substack); };
+    div.querySelector(".out").oninput = (e) => { b.output = e.target.value; saveJson(LS_SUBSTACK, substack); };
+
+    // delete
+    div.querySelector(".del").onclick = () => {
+      substack.blocks = substack.blocks.filter(x => x.id !== b.id);
+      saveJson(LS_SUBSTACK, substack);
+      ssRender();
+    };
+
+    // generate (stub for now — we’ll plug AI call next)
+    div.querySelector(".gen").onclick = async () => {
+      b.output = `[placeholder] ${b.section.toUpperCase()}: ${b.raw}`.slice(0, 1500);
+      saveJson(LS_SUBSTACK, substack);
+      ssRender();
+    };
+
+    list.appendChild(div);
+  });
+}
+
 
 function scoreEntry(e){
   // weight reposts/replies higher
@@ -1766,6 +1876,8 @@ $("calJump").onchange = () => {
   const [y,m] = v.split("-").map(Number);
   calCursor = new Date(y, m-1, 1);
   renderCalendar();
+  $("ssAddBlock").onclick = ssAddBlock;
+
 };
 
 
@@ -2039,7 +2151,7 @@ function bootRenders(){
   renderPackChecks();
   renderSettings();
   ssRender();
-
+ 
   renderSignals();
   renderStudioSignalSelect();
   syncStudioSourceMode();
