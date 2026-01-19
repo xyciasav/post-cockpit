@@ -4,7 +4,7 @@ import requests
 
 app = Flask(__name__)
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434").rstrip("/")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://10.0.0.103:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
 
 
