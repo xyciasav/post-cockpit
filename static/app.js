@@ -110,10 +110,8 @@ function toast(msg){
   setTimeout(() => el.className = "toast", 1200);
 }
 
-substack = loadJson(LS_SUBSTACK, { blocks: [] });
-
-
-let substack = loadJson(LS_SUBSTACK, {
+// --- Substack state ---
+substack = loadJson(LS_SUBSTACK, {
   issue: "",
   tone: "urgent",
   length: "medium",
@@ -123,7 +121,6 @@ let substack = loadJson(LS_SUBSTACK, {
   outputs: {},   // sectionId -> text
   titleOptions: ""
 });
-
 
 async function copyToClipboard(text){
   text = text || "";
@@ -1876,10 +1873,9 @@ $("calJump").onchange = () => {
   const [y,m] = v.split("-").map(Number);
   calCursor = new Date(y, m-1, 1);
   renderCalendar();
-  $("ssAddBlock").onclick = ssAddBlock;
-
 };
 
+  $("ssAddBlock").onclick = ssAddBlock;
 
   // Desk
   $("loadRssBtn").onclick = loadRss;
