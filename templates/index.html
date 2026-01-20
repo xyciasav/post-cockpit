@@ -18,7 +18,7 @@
 
     <nav class="tabs" aria-label="Top Navigation Tabs">
       <button class="tab active" data-tab="substack" type="button">Substack Generator</button>
-      <button class="tab" data-tab="placeholder" type="button">Placeholder</button>
+      <button class="tab" data-tab="rss" type="button">RSS Feeder</button>
     </nav>
   </header>
 
@@ -27,88 +27,132 @@
     <section class="panel active" id="panel-substack" data-panel="substack">
       <div class="panel-header">
         <h1>Substack Generator</h1>
-        <p class="muted">Dump notes into blocks, assign sections, then generate clean copy per section.</p>
+        <p class="muted">Issue/Topic + Body + Links, plus blocks you can reorder. Generate clean copy per section.</p>
+      </div>
+
+      <div class="card">
+        <div class="grid two">
+          <div>
+            <div class="field">
+              <label for="ssIssue">Issue/Topic (subject/title/context)</label>
+              <input id="ssIssue" type="text" placeholder="e.g., Jan 20 walkout — boycott + mutual aid + community action" />
+            </div>
+
+            <div class="field" style="margin-top:10px;">
+              <label for="ssBody">Body (what you want to say)</label>
+              <textarea id="ssBody" rows="6" placeholder="Type your raw thoughts here..."></textarea>
+            </div>
+          </div>
+
+          <div>
+            <div class="row">
+              <div class="field">
+                <label for="ssTone">Tone</label>
+                <select id="ssTone">
+                  <option value="firm">firm</option>
+                  <option value="urgent">urgent</option>
+                  <option value="hopeful">hopeful</option>
+                  <option value="angry_safe">angry_safe</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="ssLength">Length</label>
+                <select id="ssLength">
+                  <option value="short">short (social post)</option>
+                  <option value="medium" selected>medium (paragraph)</option>
+                  <option value="long">long (few paragraphs)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:10px;">
+              <label for="ssBodySection">Body goes to section</label>
+              <select id="ssBodySection"></select>
+              <div class="hint" style="margin-top:8px;">
+                Your “Body” is included in the selected section’s generation prompt as a primary block.
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:10px;">
+              <label for="ssBodyLinks">Links (one per line)</label>
+              <textarea id="ssBodyLinks" rows="4" placeholder="https://..."></textarea>
+              <label class="checkrow">
+                <input id="ssBodyIncludeLinks" type="checkbox" />
+                Include these links in the final output (otherwise research-only)
+              </label>
+            </div>
+
+            <div class="row wrap" style="margin-top:10px;">
+              <button id="ssAddBlock" class="btn" type="button">+ Add another block</button>
+              <button id="ssGenerate" class="btn primary" type="button">Generate sections (AI)</button>
+              <button id="ssGenTitle" class="btn" type="button">Generate subject/title</button>
+              <button id="ssCopyAll" class="btn" type="button">Copy all</button>
+            </div>
+
+            <div id="ssStatus" class="status">Ready.</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row space" style="margin-bottom:8px;">
+          <div class="section-title" style="margin:0;">Blocks (drag to reorder)</div>
+          <div class="muted" style="font-size:13px;">Blocks are grouped by section during generation.</div>
+        </div>
+
+        <div id="ssBlocks" class="stack"></div>
+      </div>
+
+      <div class="section-title" style="margin-top:16px;">Outputs</div>
+      <div id="ssOutput" class="stack"></div>
+
+      <div class="section-title" style="margin-top:16px;">Subject / Title options</div>
+      <div class="card">
+        <div class="row space">
+          <div class="muted">Numbered list only (6 options).</div>
+          <button id="ssCopyTitle" class="btn small" type="button">Copy</button>
+        </div>
+        <textarea id="ssTitleOutput" rows="8" placeholder="Click “Generate subject/title” to create options..."></textarea>
+      </div>
+    </section>
+
+    <!-- Panel: RSS Feeder -->
+    <section class="panel" id="panel-rss" data-panel="rss">
+      <div class="panel-header">
+        <h1>RSS Feeder</h1>
+        <p class="muted">Add RSS feeds, fetch stories, then send a story into the generator as a block.</p>
       </div>
 
       <div class="grid two">
         <div class="card">
-          <div class="card-title">Issue / Topic</div>
-          <input id="ssIssue" type="text" placeholder="e.g., Jan 20 walkout, ICE violence, local action plan" />
-          <div class="row">
-            <div class="field">
-              <label for="ssTone">Tone</label>
-              <select id="ssTone">
-                <option value="firm">firm</option>
-                <option value="urgent">urgent</option>
-                <option value="hopeful">hopeful</option>
-                <option value="angry_safe">angry_safe</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="ssLength">Length</label>
-              <select id="ssLength">
-                <option value="short">short</option>
-                <option value="medium" selected>medium</option>
-                <option value="long">long</option>
-              </select>
-            </div>
-          </div>
+          <div class="card-title">Feeds</div>
 
           <div class="row wrap">
-            <button id="ssAddBlock" class="btn" type="button">+ Add another block</button>
-            <button id="ssGenerate" class="btn primary" type="button">Generate sections (AI)</button>
-            <button id="ssGenTitle" class="btn" type="button">Generate subject/title</button>
-            <button id="ssCopyAll" class="btn" type="button">Copy all</button>
+            <input id="rssUrl" type="text" placeholder="Paste RSS feed URL..." />
+            <button id="rssAdd" class="btn" type="button">Add feed</button>
           </div>
 
-          <div id="ssStatus" class="status">Ready.</div>
+          <div id="rssFeeds" class="stack" style="margin-top:12px;"></div>
+
+          <div class="hint" style="margin-top:12px;">
+            Some feeds block requests; if one fails, try a different feed URL or HTTPS.
+          </div>
         </div>
 
         <div class="card">
-          <div class="card-title">How it works</div>
-          <ul class="bullets">
-            <li>Add blocks of raw info (links + notes).</li>
-            <li>Assign each block to a newsletter section.</li>
-            <li>Generate → one AI call per section.</li>
-            <li>Outputs are plain text for copy/paste.</li>
-          </ul>
-          <div class="hint">
-            Safety rules are enforced in the system prompt: factual, no invented claims, no hate, no calls for violence.
-          </div>
-        </div>
-      </div>
-
-      <div class="split">
-        <div class="col">
-          <div class="section-title">Blocks</div>
-          <div id="ssBlocks" class="stack"></div>
-        </div>
-
-        <div class="col">
-          <div class="section-title">Outputs</div>
-          <div id="ssOutput" class="stack"></div>
-
-          <div class="section-title" style="margin-top: 16px;">Subject / Title options</div>
-          <div class="card">
-            <div class="row space">
-              <div class="muted">Numbered list only (6 options).</div>
-              <button id="ssCopyTitle" class="btn small" type="button">Copy</button>
+          <div class="row space">
+            <div>
+              <div class="card-title">Stories</div>
+              <div id="rssActiveTitle" class="muted">No feed selected.</div>
             </div>
-            <textarea id="ssTitleOutput" rows="8" placeholder="Click “Generate subject/title” to create options..."></textarea>
+            <div class="row gap">
+              <button id="rssRefresh" class="btn" type="button">Refresh</button>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Panel: Placeholder -->
-    <section class="panel" id="panel-placeholder" data-panel="placeholder">
-      <div class="panel-header">
-        <h1>Placeholder</h1>
-        <p class="muted">This tab exists only to prove the tab/panel system. No features here.</p>
-      </div>
-      <div class="card">
-        <div class="card-title">Coming later</div>
-        <p class="muted">Nothing to see yet.</p>
+          <div id="rssStatus" class="status">Ready.</div>
+          <div id="rssItems" class="stack" style="margin-top:12px;"></div>
+        </div>
       </div>
     </section>
   </main>

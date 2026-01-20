@@ -1,12 +1,11 @@
 services:
-  post-cockpit:
+  social-cockpit:
     build: .
-    container_name: post-cockpit
-    environment:
-      PORT: "5010"
-      PYTHONUNBUFFERED: "1"
-      OLLAMA_BASE: "http://10.0.0.103:11434"
-      OLLAMA_MODEL: "llama3.1:latest"
+    container_name: social-cockpit
     ports:
       - "5010:5010"
+    environment:
+      - PORT=5010
+      - OLLAMA_URL=http://10.0.0.103:11434
+      - OLLAMA_MODEL=llama3.1:latest
     restart: unless-stopped
