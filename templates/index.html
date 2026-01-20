@@ -23,7 +23,7 @@
   </header>
 
   <main class="container">
-    <!-- Panel: Substack Generator (NOT nested inside another panel) -->
+    <!-- Panel: Substack Generator -->
     <section class="panel active" id="panel-substack" data-panel="substack">
       <div class="panel-header">
         <h1>Substack Generator</h1>
@@ -103,7 +103,13 @@
         <div id="ssBlocks" class="stack"></div>
       </div>
 
-      <div class="section-title" style="margin-top:16px;">Outputs</div>
+      <!-- Outputs are now dynamic bubbles ONLY (no empty placeholders) -->
+      <div class="row space" style="margin-top:16px; margin-bottom:8px;">
+        <div class="section-title" style="margin:0;">Generated Outputs (drag to reorder)</div>
+        <div class="row gap">
+          <button id="ssClearOutputs" class="btn small danger" type="button">Clear outputs</button>
+        </div>
+      </div>
       <div id="ssOutput" class="stack"></div>
 
       <div class="section-title" style="margin-top:16px;">Subject / Title options</div>
