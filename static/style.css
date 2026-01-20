@@ -260,3 +260,9 @@ input:focus, select:focus, textarea:focus{
 .rss-url.active{
   color: var(--text);
 }
+
+.bubble.dragging{
+  opacity: 0.6;
+  outline: 2px dashed rgba(43,111,255,0.45);
+  outline-offset: 4px;
+}
