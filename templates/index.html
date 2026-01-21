@@ -27,7 +27,7 @@
     <section class="panel active" id="panel-substack" data-panel="substack">
       <div class="panel-header">
         <h1>Substack Generator</h1>
-        <p class="muted">Issue/Topic + Body + Links, plus blocks you can reorder. Generate clean copy per section.</p>
+        <p class="muted">Issue/Topic + Body + Links, plus blocks you can reorder. AI outputs become generated blocks.</p>
       </div>
 
       <div class="card">
@@ -86,7 +86,7 @@
               <button id="ssAddBlock" class="btn" type="button">+ Add another block</button>
               <button id="ssGenerate" class="btn primary" type="button">Generate sections (AI)</button>
               <button id="ssGenTitle" class="btn" type="button">Generate subject/title</button>
-              <button id="ssCopyAll" class="btn" type="button">Copy all</button>
+              <button id="ssCopyAll" class="btn" type="button">Copy all generated</button>
             </div>
 
             <div id="ssStatus" class="status">Ready.</div>
@@ -97,20 +97,11 @@
 
         <div class="row space" style="margin-bottom:8px;">
           <div class="section-title" style="margin:0;">Blocks (drag to reorder)</div>
-          <div class="muted" style="font-size:13px;">Blocks are grouped by section during generation.</div>
+          <div class="muted" style="font-size:13px;">AI outputs will appear here as GENERATED blocks.</div>
         </div>
 
         <div id="ssBlocks" class="stack"></div>
       </div>
-
-      <!-- Outputs are now dynamic bubbles ONLY (no empty placeholders) -->
-      <div class="row space" style="margin-top:16px; margin-bottom:8px;">
-        <div class="section-title" style="margin:0;">Generated Outputs (drag to reorder)</div>
-        <div class="row gap">
-          <button id="ssClearOutputs" class="btn small danger" type="button">Clear outputs</button>
-        </div>
-      </div>
-      <div id="ssOutput" class="stack"></div>
 
       <div class="section-title" style="margin-top:16px;">Subject / Title options</div>
       <div class="card">
