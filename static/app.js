@@ -224,42 +224,36 @@
   }
 
   function renderBlocks() {
-    const container = $("ssBlocks");
-    container.innerHTML = "";
+  const container = $("ssBlocks");
+  container.innerHTML = "";
 
-    if (state.blocks.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "card empty";
-      empty.innerHTML = `<div class="muted">No blocks yet. Click <b>+ Add another block</b>.</div>`;
-      container.appendChild(empty);
-      return;
-    }
+  if (state.blocks.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "card empty";
+    empty.innerHTML = `<div class="muted">No blocks yet. Click <b>+ Add another block</b>.</div>`;
+    container.appendChild(empty);
+    return;
+  }
 
-    state.blocks.forEach((b, idx) => {
-      const card = document.createElement("div");
-      card.className = "card block";
-      card.setAttribute("draggable", "true");
-      card.setAttribute("data-block-id", b.id);
+  state.blocks.forEach((b, idx) => {
+    const card = document.createElement("div");
+    card.className = "card block";
+    card.setAttribute("draggable", "true");
+    card.setAttribute("data-block-id", b.id);
 
-      const sectionOptions = SECTIONS.map(s => (
-        `<option value="${s.id}" ${s.id === b.sectionId ? "selected" : ""}>${s.name}</option>`
-      )).join("");
-
-      const genBadge = b.isGenerated ? `<span class="badge">GENERATED</span>` : "";
-
+    // ---------- GENERATED BLOCK (minimal) ----------
+    if (b.isGenerated) {
       card.innerHTML = `
         <div class="row space">
           <div class="row gap">
             <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
             <div class="pill">${idx + 1}</div>
-            ${genBadge}
-            <select class="input" data-action="block-section" data-id="${b.id}">
-              ${sectionOptions}
-            </select>
+            <span class="badge">GENERATED</span>
+            <div class="gen-title">${escapeHtml(sectionName(b.sectionId))}</div>
           </div>
 
           <div class="row gap">
-            ${b.isGenerated ? `<button class="btn small" data-action="block-copy" data-id="${b.id}">Copy</button>` : ""}
+            <button class="btn small" data-action="block-copy" data-id="${b.id}">Copy</button>
             <button class="btn small" data-action="block-up" data-id="${b.id}" title="Move up">↑</button>
             <button class="btn small" data-action="block-down" data-id="${b.id}" title="Move down">↓</button>
             <button class="btn small danger" data-action="block-del" data-id="${b.id}">Delete</button>
@@ -267,34 +261,67 @@
         </div>
 
         <div class="field" style="margin-top:10px;">
-          <label>Optional label/title</label>
-          <input class="input" type="text" placeholder="e.g., Note, quote, local update"
-                 data-action="block-label" data-id="${b.id}" value="${escapeHtmlAttr(b.label || "")}" />
-        </div>
-
-        <div class="grid two" style="margin-top:10px;">
-          <div class="field">
-            <label>Links (one per line)</label>
-            <textarea class="input" rows="4" placeholder="https://..."
-                      data-action="block-links" data-id="${b.id}">${escapeHtml(b.links || "")}</textarea>
-            <label class="checkrow">
-              <input type="checkbox" data-action="block-include-links" data-id="${b.id}" ${b.includeLinks ? "checked" : ""} />
-              Include links in final output (otherwise research-only)
-            </label>
-          </div>
-          <div class="field">
-            <label>${b.isGenerated ? "Generated text (editable)" : "Notes (info dump)"}</label>
-            <textarea class="input" rows="6"
-                      placeholder="${b.isGenerated ? "Generated output..." : "Paste raw notes here..."}"
-                      data-action="block-notes" data-id="${b.id}">${escapeHtml(b.notes || "")}</textarea>
-          </div>
+          <textarea class="input" rows="7"
+            placeholder="Generated output..."
+            data-action="block-notes" data-id="${b.id}">${escapeHtml(b.notes || "")}</textarea>
         </div>
       `;
       container.appendChild(card);
-    });
+      return;
+    }
 
-    wireDragAndDropBlocks();
-  }
+    // ---------- INPUT BLOCK (full) ----------
+    const sectionOptions = SECTIONS.map(s => (
+      `<option value="${s.id}" ${s.id === b.sectionId ? "selected" : ""}>${s.name}</option>`
+    )).join("");
+
+    card.innerHTML = `
+      <div class="row space">
+        <div class="row gap">
+          <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
+          <div class="pill">${idx + 1}</div>
+          <select class="input" data-action="block-section" data-id="${b.id}">
+            ${sectionOptions}
+          </select>
+        </div>
+
+        <div class="row gap">
+          <button class="btn small" data-action="block-up" data-id="${b.id}" title="Move up">↑</button>
+          <button class="btn small" data-action="block-down" data-id="${b.id}" title="Move down">↓</button>
+          <button class="btn small danger" data-action="block-del" data-id="${b.id}">Delete</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:10px;">
+        <label>Optional label/title</label>
+        <input class="input" type="text" placeholder="e.g., Note, quote, local update"
+               data-action="block-label" data-id="${b.id}" value="${escapeHtmlAttr(b.label || "")}" />
+      </div>
+
+      <div class="grid two" style="margin-top:10px;">
+        <div class="field">
+          <label>Links (one per line)</label>
+          <textarea class="input" rows="4" placeholder="https://..."
+                    data-action="block-links" data-id="${b.id}">${escapeHtml(b.links || "")}</textarea>
+          <label class="checkrow">
+            <input type="checkbox" data-action="block-include-links" data-id="${b.id}" ${b.includeLinks ? "checked" : ""} />
+            Include links in final output (otherwise research-only)
+          </label>
+        </div>
+        <div class="field">
+          <label>Notes (info dump)</label>
+          <textarea class="input" rows="6" placeholder="Paste raw notes here..."
+                    data-action="block-notes" data-id="${b.id}">${escapeHtml(b.notes || "")}</textarea>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+
+  wireDragAndDropBlocks();
+}
+
 
   function readTopFields() {
     state.issue = $("ssIssue").value || "";
