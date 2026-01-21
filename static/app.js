@@ -11,6 +11,7 @@
     { id: "resources_optional", name: "Resources (Optional)" },
     { id: "upcoming_events_optional", name: "Upcoming Events (Optional)" },
     { id: "closing_optional", name: "Closing (Optional)" },
+    { id: "upcoming_schedule", name: "Upcoming Schedule" },
   ];
 
   const DEFAULT_STATE = {
@@ -162,6 +163,16 @@
     merged.tone = typeof parsed.tone === "string" ? parsed.tone : merged.tone;
     merged.length = typeof parsed.length === "string" ? parsed.length : merged.length;
 
+    schedule: b.schedule && typeof b.schedule === "object"
+  ? {
+      title: typeof b.schedule.title === "string" ? b.schedule.title : "",
+      date: typeof b.schedule.date === "string" ? b.schedule.date : "",
+      time: typeof b.schedule.time === "string" ? b.schedule.time : "",
+      location: typeof b.schedule.location === "string" ? b.schedule.location : "",
+      rsvp: typeof b.schedule.rsvp === "string" ? b.schedule.rsvp : "",
+    }
+  : { title:"", date:"", time:"", location:"", rsvp:"" },
+
     merged.body = typeof parsed.body === "string" ? parsed.body : merged.body;
     merged.bodySectionId = typeof parsed.bodySectionId === "string" ? parsed.bodySectionId : merged.bodySectionId;
     merged.bodyLinks = typeof parsed.bodyLinks === "string" ? parsed.bodyLinks : merged.bodyLinks;
@@ -186,6 +197,46 @@
     for (const s of SECTIONS) if (!(s.id in merged.outputs)) merged.outputs[s.id] = "";
     return merged;
   }
+
+function formatScheduleBlock(b) {
+  // b.schedule: { title, date, time, location, rsvp }
+  const s = b.schedule || {};
+  const title = (s.title || "").trim();
+  const date = (s.date || "").trim();
+  const time = (s.time || "").trim();
+  const location = (s.location || "").trim();
+  const rsvp = (s.rsvp || "").trim();
+
+  const lines = [];
+  if (!title && !date && !time && !location && !rsvp) return "";
+
+  lines.push("📅 Upcoming Schedule");
+
+  // First line: "Today, Jan 20th — Walkout" (date optional)
+  const headParts = [];
+  if (date) headParts.push(date);
+  if (title) headParts.push(title);
+  lines.push(headParts.length ? headParts.join(" — ") : "(Add title/date)");
+
+  // Location (optional)
+  if (location) {
+    lines.push(`📍 ${location}`);
+  }
+
+  // Time (required-ish, but don’t force)
+  if (time) {
+    lines.push(`🕔 ${time}`);
+  }
+
+  // RSVP (optional)
+  if (rsvp) {
+    lines.push(`👉 RSVP Here`);
+    lines.push(rsvp);
+  }
+
+  return lines.join("\n");
+}
+
 
   function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
@@ -270,58 +321,75 @@
       return;
     }
 
-    // ---------- INPUT BLOCK (full) ----------
-    const sectionOptions = SECTIONS.map(s => (
-      `<option value="${s.id}" ${s.id === b.sectionId ? "selected" : ""}>${s.name}</option>`
-    )).join("");
+// ---------- INPUT BLOCK (full) ----------
+const sectionOptions = SECTIONS.map(s => (
+  `<option value="${s.id}" ${s.id === b.sectionId ? "selected" : ""}>${s.name}</option>`
+)).join("");
 
-    card.innerHTML = `
-      <div class="row space">
-        <div class="row gap">
-          <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
-          <div class="pill">${idx + 1}</div>
-          <select class="input" data-action="block-section" data-id="${b.id}">
-            ${sectionOptions}
-          </select>
-        </div>
-
-        <div class="row gap">
-          <button class="btn small" data-action="block-up" data-id="${b.id}" title="Move up">↑</button>
-          <button class="btn small" data-action="block-down" data-id="${b.id}" title="Move down">↓</button>
-          <button class="btn small danger" data-action="block-del" data-id="${b.id}">Delete</button>
-        </div>
+// SPECIAL: schedule input block
+if (b.sectionId === "upcoming_schedule") {
+  const s = b.schedule || { title:"", date:"", time:"", location:"", rsvp:"" };
+  card.innerHTML = `
+    <div class="row space">
+      <div class="row gap">
+        <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
+        <div class="pill">${idx + 1}</div>
+        <select class="input" data-action="block-section" data-id="${b.id}">
+          ${sectionOptions}
+        </select>
       </div>
 
-      <div class="field" style="margin-top:10px;">
-        <label>Optional label/title</label>
-        <input class="input" type="text" placeholder="e.g., Note, quote, local update"
-               data-action="block-label" data-id="${b.id}" value="${escapeHtmlAttr(b.label || "")}" />
+      <div class="row gap">
+        <button class="btn small" data-action="block-up" data-id="${b.id}" title="Move up">↑</button>
+        <button class="btn small" data-action="block-down" data-id="${b.id}" title="Move down">↓</button>
+        <button class="btn small danger" data-action="block-del" data-id="${b.id}">Delete</button>
       </div>
+    </div>
 
-      <div class="grid two" style="margin-top:10px;">
-        <div class="field">
-          <label>Links (one per line)</label>
-          <textarea class="input" rows="4" placeholder="https://..."
-                    data-action="block-links" data-id="${b.id}">${escapeHtml(b.links || "")}</textarea>
-          <label class="checkrow">
-            <input type="checkbox" data-action="block-include-links" data-id="${b.id}" ${b.includeLinks ? "checked" : ""} />
-            Include links in final output (otherwise research-only)
-          </label>
-        </div>
-        <div class="field">
-          <label>Notes (info dump)</label>
-          <textarea class="input" rows="6" placeholder="Paste raw notes here..."
-                    data-action="block-notes" data-id="${b.id}">${escapeHtml(b.notes || "")}</textarea>
-        </div>
+    <div class="grid two" style="margin-top:10px;">
+      <div class="field">
+        <label>Title</label>
+        <input class="input" type="text" placeholder="Walkout"
+          data-action="sched-title" data-id="${b.id}" value="${escapeHtmlAttr(s.title || "")}" />
       </div>
-    `;
+      <div class="field">
+        <label>Date</label>
+        <input class="input" type="text" placeholder="Today, Jan 20th"
+          data-action="sched-date" data-id="${b.id}" value="${escapeHtmlAttr(s.date || "")}" />
+      </div>
+    </div>
 
-    container.appendChild(card);
-  });
+    <div class="grid two" style="margin-top:10px;">
+      <div class="field">
+        <label>Time</label>
+        <input class="input" type="text" placeholder="2:00 PM"
+          data-action="sched-time" data-id="${b.id}" value="${escapeHtmlAttr(s.time || "")}" />
+      </div>
+      <div class="field">
+        <label>Location (optional)</label>
+        <input class="input" type="text" placeholder="Everywhere / Brentwood Pedestrian Bridge"
+          data-action="sched-location" data-id="${b.id}" value="${escapeHtmlAttr(s.location || "")}" />
+      </div>
+    </div>
 
-  wireDragAndDropBlocks();
+    <div class="field" style="margin-top:10px;">
+      <label>RSVP link (optional)</label>
+      <input class="input" type="text" placeholder="https://mobilize.us/..."
+        data-action="sched-rsvp" data-id="${b.id}" value="${escapeHtmlAttr(s.rsvp || "")}" />
+    </div>
+
+    <div class="field" style="margin-top:10px;">
+      <label>Output (auto-formatted)</label>
+      <textarea class="input" rows="7"
+        data-action="block-notes" data-id="${b.id}">${escapeHtml(b.notes || "")}</textarea>
+      <div class="hint" style="margin-top:6px;">
+        This output auto-updates as you edit the schedule fields.
+      </div>
+    </div>
+  `;
+  container.appendChild(card);
+  return;
 }
-
 
   function readTopFields() {
     state.issue = $("ssIssue").value || "";
@@ -345,6 +413,7 @@
       includeLinks: !!prefill.includeLinks,
       notes: prefill.notes || "",
       isGenerated: !!prefill.isGenerated,
+      schedule: prefill.schedule || { title:"", date:"", time:"", location:"", rsvp:"" },
     });
     saveState();
     renderBlocks();
