@@ -1,9 +1,7 @@
 (() => {
-  // ---------- Storage ----------
   const STORAGE_KEY = "sc_substack_v1";
   const RSS_STORAGE_KEY = "sc_rss_v1";
 
-  // ---------- Sections ----------
   const SECTIONS = [
     { id: "opening", name: "Opening" },
     { id: "democracy_watch", name: "Democracy Watch" },
@@ -27,22 +25,14 @@
 
     blocks: [],
 
-    // outputs text keyed by section id
+    // used only for title generation (not shown as separate UI)
     outputs: Object.fromEntries(SECTIONS.map(s => [s.id, ""])),
-
-    // NEW: only show these output bubbles (order matters)
-    outputOrder: [],
 
     titleOutput: ""
   };
 
-  const DEFAULT_RSS = {
-    feeds: [],
-    activeFeedUrl: "",
-    lastItems: []
-  };
+  const DEFAULT_RSS = { feeds: [], activeFeedUrl: "", lastItems: [] };
 
-  // ---------- Helpers ----------
   function uid() {
     return Math.random().toString(16).slice(2) + Date.now().toString(16);
   }
@@ -58,9 +48,7 @@
     if (kind === "err") el.classList.add("err");
   }
 
-  function safeParseJSON(str) {
-    try { return JSON.parse(str); } catch { return null; }
-  }
+  function safeParseJSON(str) { try { return JSON.parse(str); } catch { return null; } }
 
   function stripCodeFences(text) {
     if (!text) return "";
@@ -94,14 +82,9 @@
   }
 
   function escapeHtml(s) {
-    return String(s)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;");
+    return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   }
-  function escapeHtmlAttr(s) {
-    return escapeHtml(s).replaceAll('"', "&quot;");
-  }
+  function escapeHtmlAttr(s) { return escapeHtml(s).replaceAll('"', "&quot;"); }
 
   function sectionName(sectionId) {
     return (SECTIONS.find(s => s.id === sectionId)?.name) || sectionId;
@@ -109,51 +92,34 @@
 
   function toneGuidance(tone) {
     switch (tone) {
-      case "urgent":
-        return "Tone: urgent, direct, clear. No panic. No exaggeration.";
-      case "hopeful":
-        return "Tone: hopeful, grounded, practical. Avoid empty optimism.";
-      case "angry_safe":
-        return "Tone: angry but safe—channel outrage into constructive, lawful action. No insults, hate, or violence.";
+      case "urgent": return "Tone: urgent, direct, clear. No panic. No exaggeration.";
+      case "hopeful": return "Tone: hopeful, grounded, practical. Avoid empty optimism.";
+      case "angry_safe": return "Tone: angry but safe—channel outrage into constructive, lawful action. No insults, hate, or violence.";
       case "firm":
-      default:
-        return "Tone: firm, serious, confident, community-minded.";
+      default: return "Tone: firm, serious, confident, community-minded.";
     }
   }
 
   function lengthGuidance(length) {
     switch (length) {
-      case "short":
-        return "Length: short. Social-media post length (tight, punchy).";
-      case "medium":
-        return "Length: medium. About one paragraph (roughly 4–8 sentences).";
-      case "long":
-        return "Length: long. A few paragraphs (roughly 3–5 short paragraphs).";
-      default:
-        return "Length: medium.";
+      case "short": return "Length: short. Social-media post length (tight, punchy).";
+      case "medium": return "Length: medium. About one paragraph (roughly 4–8 sentences).";
+      case "long": return "Length: long. A few paragraphs (roughly 3–5 short paragraphs).";
+      default: return "Length: medium.";
     }
   }
 
   function sectionRules(sectionId) {
     switch (sectionId) {
-      case "opening":
-        return "Punchy opening, 2–5 sentences. Set context for the issue. Plain text.";
-      case "democracy_watch":
-        return "Summarize key developments clearly. Short paragraphs. Bullets only if needed. Plain text.";
-      case "important_read_first":
-        return "Lead with the single most important point. Then 2–5 bullets. Plain text.";
-      case "community":
-        return "Community updates, mutual aid, local context, wins/needs. 1–3 short paragraphs.";
-      case "call_to_action":
-        return "Clear asks. Use bullets. Lawful, constructive actions only. No violence.";
-      case "resources_optional":
-        return "List resources/links with a short context line each. Only use provided links.";
-      case "upcoming_events_optional":
-        return "List upcoming events from input. Bullets. No invented dates/locations.";
-      case "closing_optional":
-        return "Short grounding close and reminder to stay involved. 1 paragraph.";
-      default:
-        return "Write clear, plain-text copy appropriate to this section.";
+      case "opening": return "Punchy opening, 2–5 sentences. Set context for the issue. Plain text.";
+      case "democracy_watch": return "Summarize key developments clearly. Short paragraphs. Bullets only if needed. Plain text.";
+      case "important_read_first": return "Lead with the single most important point. Then 2–5 bullets. Plain text.";
+      case "community": return "Community updates, mutual aid, local context, wins/needs. 1–3 short paragraphs.";
+      case "call_to_action": return "Clear asks. Use bullets. Lawful, constructive actions only. No violence.";
+      case "resources_optional": return "List resources/links with a short context line each. Only use provided links.";
+      case "upcoming_events_optional": return "List upcoming events from input. Bullets. No invented dates/locations.";
+      case "closing_optional": return "Short grounding close and reminder to stay involved. 1 paragraph.";
+      default: return "Write clear, plain-text copy appropriate to this section.";
     }
   }
 
@@ -179,11 +145,9 @@
       throw new Error(`AI request failed (${resp.status}): ${txt}`);
     }
     const data = await resp.json();
-    const content = data?.message?.content ?? "";
-    return stripCodeFences(content);
+    return stripCodeFences(data?.message?.content ?? "");
   }
 
-  // ---------- State ----------
   let state = loadState();
   let rssState = loadRssState();
 
@@ -194,7 +158,6 @@
     if (!parsed || typeof parsed !== "object") return structuredClone(DEFAULT_STATE);
 
     const merged = structuredClone(DEFAULT_STATE);
-
     merged.issue = typeof parsed.issue === "string" ? parsed.issue : merged.issue;
     merged.tone = typeof parsed.tone === "string" ? parsed.tone : merged.tone;
     merged.length = typeof parsed.length === "string" ? parsed.length : merged.length;
@@ -211,40 +174,20 @@
       links: typeof b.links === "string" ? b.links : "",
       includeLinks: !!b.includeLinks,
       notes: typeof b.notes === "string" ? b.notes : "",
+      isGenerated: !!b.isGenerated,
     })) : [];
 
-    // outputs
     merged.outputs = typeof parsed.outputs === "object" && parsed.outputs
       ? { ...merged.outputs, ...parsed.outputs }
       : merged.outputs;
 
-    // output order (only sections we actually show as bubbles)
-    merged.outputOrder = Array.isArray(parsed.outputOrder) ? parsed.outputOrder.filter(x => typeof x === "string") : [];
-
     merged.titleOutput = typeof parsed.titleOutput === "string" ? parsed.titleOutput : "";
 
-    // ensure output keys exist
-    for (const s of SECTIONS) {
-      if (!(s.id in merged.outputs)) merged.outputs[s.id] = "";
-    }
-
-    // MIGRATION: if outputOrder missing but outputs exist, build it from non-empty outputs
-    if (merged.outputOrder.length === 0) {
-      const nonEmpty = SECTIONS
-        .map(s => s.id)
-        .filter(id => (merged.outputs[id] || "").trim().length > 0);
-      merged.outputOrder = nonEmpty;
-    } else {
-      // remove any ids with empty output (keeps UI clean)
-      merged.outputOrder = merged.outputOrder.filter(id => (merged.outputs[id] || "").trim().length > 0);
-    }
-
+    for (const s of SECTIONS) if (!(s.id in merged.outputs)) merged.outputs[s.id] = "";
     return merged;
   }
 
-  function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
+  function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
   function loadRssState() {
     const raw = localStorage.getItem(RSS_STORAGE_KEY);
@@ -259,15 +202,11 @@
     return merged;
   }
 
-  function saveRssState() {
-    localStorage.setItem(RSS_STORAGE_KEY, JSON.stringify(rssState));
-  }
+  function saveRssState() { localStorage.setItem(RSS_STORAGE_KEY, JSON.stringify(rssState)); }
 
-  // ---------- Tabs ----------
   function initTabs() {
     const tabs = Array.from(document.querySelectorAll(".tab"));
     const panels = Array.from(document.querySelectorAll(".panel"));
-
     tabs.forEach(btn => {
       btn.addEventListener("click", () => {
         const key = btn.getAttribute("data-tab");
@@ -277,7 +216,6 @@
     });
   }
 
-  // ---------- Substack rendering ----------
   function renderBodySectionDropdown() {
     const sel = $("ssBodySection");
     sel.innerHTML = SECTIONS.map(s =>
@@ -292,7 +230,7 @@
     if (state.blocks.length === 0) {
       const empty = document.createElement("div");
       empty.className = "card empty";
-      empty.innerHTML = `<div class="muted">No extra blocks yet. Click <b>+ Add another block</b>.</div>`;
+      empty.innerHTML = `<div class="muted">No blocks yet. Click <b>+ Add another block</b>.</div>`;
       container.appendChild(empty);
       return;
     }
@@ -307,17 +245,21 @@
         `<option value="${s.id}" ${s.id === b.sectionId ? "selected" : ""}>${s.name}</option>`
       )).join("");
 
+      const genBadge = b.isGenerated ? `<span class="badge">GENERATED</span>` : "";
+
       card.innerHTML = `
         <div class="row space">
           <div class="row gap">
             <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
             <div class="pill">${idx + 1}</div>
+            ${genBadge}
             <select class="input" data-action="block-section" data-id="${b.id}">
               ${sectionOptions}
             </select>
           </div>
 
           <div class="row gap">
+            ${b.isGenerated ? `<button class="btn small" data-action="block-copy" data-id="${b.id}">Copy</button>` : ""}
             <button class="btn small" data-action="block-up" data-id="${b.id}" title="Move up">↑</button>
             <button class="btn small" data-action="block-down" data-id="${b.id}" title="Move down">↓</button>
             <button class="btn small danger" data-action="block-del" data-id="${b.id}">Delete</button>
@@ -341,8 +283,9 @@
             </label>
           </div>
           <div class="field">
-            <label>Notes (info dump)</label>
-            <textarea class="input" rows="4" placeholder="Paste raw notes here..."
+            <label>${b.isGenerated ? "Generated text (editable)" : "Notes (info dump)"}</label>
+            <textarea class="input" rows="6"
+                      placeholder="${b.isGenerated ? "Generated output..." : "Paste raw notes here..."}"
                       data-action="block-notes" data-id="${b.id}">${escapeHtml(b.notes || "")}</textarea>
           </div>
         </div>
@@ -353,55 +296,19 @@
     wireDragAndDropBlocks();
   }
 
-  // ONLY show bubbles/cards for outputs that exist in outputOrder
-  function renderOutputs() {
-    const container = $("ssOutput");
-    container.innerHTML = "";
+  function readTopFields() {
+    state.issue = $("ssIssue").value || "";
+    state.tone = $("ssTone").value || "firm";
+    state.length = $("ssLength").value || "medium";
 
-    const order = Array.isArray(state.outputOrder) ? state.outputOrder : [];
+    state.body = $("ssBody").value || "";
+    state.bodySectionId = $("ssBodySection").value || "opening";
+    state.bodyLinks = $("ssBodyLinks").value || "";
+    state.bodyIncludeLinks = $("ssBodyIncludeLinks").checked;
 
-    if (order.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "card empty";
-      empty.innerHTML = `<div class="muted">No generated outputs yet. Click <b>Generate sections (AI)</b>.</div>`;
-      container.appendChild(empty);
-      return;
-    }
-
-    order.forEach((secId, idx) => {
-      const secName = sectionName(secId);
-      const val = (state.outputs?.[secId] || "");
-
-      const card = document.createElement("div");
-      card.className = "card output bubble";
-      card.setAttribute("draggable", "true");
-      card.setAttribute("data-out-id", secId);
-
-      card.innerHTML = `
-        <div class="row space">
-          <div class="row gap">
-            <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
-            <div class="pill">${idx + 1}</div>
-            <div class="card-title">${escapeHtml(secName)}</div>
-          </div>
-          <div class="row gap">
-            <button class="btn small" data-action="out-up" data-id="${secId}" title="Move up">↑</button>
-            <button class="btn small" data-action="out-down" data-id="${secId}" title="Move down">↓</button>
-            <button class="btn small" data-action="copy-out" data-id="${secId}">Copy</button>
-            <button class="btn small danger" data-action="clear-out" data-id="${secId}">Remove</button>
-          </div>
-        </div>
-
-        <textarea class="input" rows="10" data-action="edit-output" data-id="${secId}"
-          placeholder="(Empty)">${escapeHtml(val)}</textarea>
-      `;
-      container.appendChild(card);
-    });
-
-    wireDragAndDropOutputs();
+    saveState();
   }
 
-  // ---------- Substack logic ----------
   function addBlock(prefill = {}) {
     state.blocks.push({
       id: uid(),
@@ -410,6 +317,7 @@
       links: prefill.links || "",
       includeLinks: !!prefill.includeLinks,
       notes: prefill.notes || "",
+      isGenerated: !!prefill.isGenerated,
     });
     saveState();
     renderBlocks();
@@ -442,17 +350,25 @@
     saveState();
   }
 
-  function readTopFields() {
-    state.issue = $("ssIssue").value || "";
-    state.tone = $("ssTone").value || "firm";
-    state.length = $("ssLength").value || "medium";
-
-    state.body = $("ssBody").value || "";
-    state.bodySectionId = $("ssBodySection").value || "opening";
-    state.bodyLinks = $("ssBodyLinks").value || "";
-    state.bodyIncludeLinks = $("ssBodyIncludeLinks").checked;
-
-    saveState();
+  // one generated block per section
+  function getOrCreateGeneratedBlock(sectionId) {
+    let b = state.blocks.find(x => x.isGenerated && x.sectionId === sectionId);
+    if (!b) {
+      b = {
+        id: uid(),
+        sectionId,
+        label: sectionName(sectionId),
+        links: "",
+        includeLinks: false,
+        notes: "",
+        isGenerated: true
+      };
+      state.blocks.unshift(b);
+    } else {
+      state.blocks = state.blocks.filter(x => x.id !== b.id);
+      state.blocks.unshift(b);
+    }
+    return b;
   }
 
   function blocksBySection() {
@@ -460,7 +376,6 @@
 
     const bodyText = (state.body || "").trim();
     if (bodyText) {
-      map[state.bodySectionId] = map[state.bodySectionId] || [];
       map[state.bodySectionId].unshift({
         id: "PRIMARY_BODY",
         sectionId: state.bodySectionId,
@@ -472,8 +387,8 @@
     }
 
     for (const b of state.blocks) {
+      if (b.isGenerated) continue; // do NOT feed AI outputs back into AI input
       const sid = b.sectionId || "democracy_watch";
-      if (!map[sid]) map[sid] = [];
       map[sid].push(b);
     }
     return map;
@@ -497,28 +412,6 @@
     }).join("\n");
   }
 
-  function ensureOutputBubble(secId, moveToTop = true) {
-    // Only show sections that have text
-    const text = (state.outputs[secId] || "").trim();
-    if (!text) return;
-
-    // ensure exists in outputOrder
-    state.outputOrder = Array.isArray(state.outputOrder) ? state.outputOrder : [];
-    const exists = state.outputOrder.includes(secId);
-    if (!exists) state.outputOrder.unshift(secId);
-
-    // optionally move to top (so “new generated section” becomes the bubble you see)
-    if (exists && moveToTop) {
-      state.outputOrder = state.outputOrder.filter(x => x !== secId);
-      state.outputOrder.unshift(secId);
-    }
-
-    // remove any ids whose outputs became empty
-    state.outputOrder = state.outputOrder.filter(id => (state.outputs[id] || "").trim().length > 0);
-
-    saveState();
-  }
-
   async function generateSections() {
     readTopFields();
 
@@ -529,10 +422,10 @@
 
     const hasAnyInput =
       (state.body || "").trim().length > 0 ||
-      state.blocks.length > 0;
+      state.blocks.some(b => !b.isGenerated);
 
     if (!hasAnyInput) {
-      setStatus("ssStatus", "Add Body text or at least one block.", "warn");
+      setStatus("ssStatus", "Add Body text or at least one input block.", "warn");
       return;
     }
 
@@ -573,13 +466,21 @@
 
       try {
         const out = await callAI(messages);
-        state.outputs[sec.id] = out.trim();
-        ensureOutputBubble(sec.id, true);
-        renderOutputs();
+        const cleaned = out.trim();
 
-        // scroll the newest/updated bubble into view
-        const bubble = document.querySelector(`.bubble[data-out-id="${sec.id}"]`);
-        bubble?.scrollIntoView({ behavior: "smooth", block: "start" });
+        // keep for title generation (internal)
+        state.outputs[sec.id] = cleaned;
+
+        // write into a generated block (single path)
+        const gb = getOrCreateGeneratedBlock(sec.id);
+        gb.notes = cleaned;
+
+        saveState();
+        renderBlocks();
+
+        document.querySelector(`.block[data-block-id="${gb.id}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+
       } catch (e) {
         console.error(e);
         setStatus("ssStatus", `Error generating ${sec.name}: ${e.message}`, "err");
@@ -587,20 +488,20 @@
       }
     }
 
-    setStatus("ssStatus", "Done. Outputs updated.", "ok");
+    setStatus("ssStatus", "Done. Generated blocks updated.", "ok");
   }
 
   async function generateTitleOptions() {
     readTopFields();
 
-    // Use ONLY what’s currently visible as output bubbles (in order)
-    const combined = (state.outputOrder || [])
-      .map(id => (state.outputs[id] || "").trim())
+    const generatedText = state.blocks
+      .filter(b => b.isGenerated)
+      .map(b => (b.notes || "").trim())
       .filter(Boolean)
       .join("\n\n");
 
-    if (!combined.trim()) {
-      setStatus("ssStatus", "Generate section outputs first (or type into outputs).", "warn");
+    if (!generatedText.trim()) {
+      setStatus("ssStatus", "Generate sections first (so there are generated blocks).", "warn");
       return;
     }
 
@@ -614,7 +515,7 @@
       "Return a numbered list only (1-6). No extra commentary.",
       "",
       "NEWSLETTER CONTENT:",
-      combined
+      generatedText
     ].join("\n");
 
     const messages = [
@@ -634,52 +535,22 @@
     }
   }
 
-  async function copyAll() {
-    const parts = [];
-    for (const id of (state.outputOrder || [])) {
-      const txt = (state.outputs[id] || "").trim();
-      if (!txt) continue;
-      parts.push(`${sectionName(id)}\n${txt}`);
-    }
+  async function copyAllGenerated() {
+    const parts = state.blocks
+      .filter(b => b.isGenerated)
+      .map(b => `[${sectionName(b.sectionId)}]\n${(b.notes || "").trim()}`)
+      .filter(x => x.trim().length > 0);
+
     const joined = parts.join("\n\n---\n\n");
     if (!joined.trim()) {
-      setStatus("ssStatus", "Nothing to copy yet.", "warn");
+      setStatus("ssStatus", "No generated blocks to copy yet.", "warn");
       return;
     }
+
     const ok = await copyToClipboard(joined);
-    setStatus("ssStatus", ok ? "Copied all visible outputs." : "Copy failed.", ok ? "ok" : "err");
+    setStatus("ssStatus", ok ? "Copied all generated blocks." : "Copy failed.", ok ? "ok" : "err");
   }
 
-  function clearOneOutput(secId) {
-    state.outputs[secId] = "";
-    state.outputOrder = (state.outputOrder || []).filter(x => x !== secId);
-    saveState();
-    renderOutputs();
-    setStatus("ssStatus", `Removed output: ${sectionName(secId)}`, "ok");
-  }
-
-  function clearAllOutputs() {
-    for (const s of SECTIONS) state.outputs[s.id] = "";
-    state.outputOrder = [];
-    saveState();
-    renderOutputs();
-    setStatus("ssStatus", "Cleared all outputs.", "ok");
-  }
-
-  function moveOutput(secId, dir) {
-    state.outputOrder = Array.isArray(state.outputOrder) ? state.outputOrder : [];
-    const i = state.outputOrder.indexOf(secId);
-    if (i < 0) return;
-    const j = i + dir;
-    if (j < 0 || j >= state.outputOrder.length) return;
-    const tmp = state.outputOrder[i];
-    state.outputOrder[i] = state.outputOrder[j];
-    state.outputOrder[j] = tmp;
-    saveState();
-    renderOutputs();
-  }
-
-  // ---------- Drag & Drop: Blocks ----------
   function wireDragAndDropBlocks() {
     const container = $("ssBlocks");
     const cards = Array.from(container.querySelectorAll(".block[draggable='true']"));
@@ -723,52 +594,7 @@
     });
   }
 
-  // ---------- Drag & Drop: Outputs ----------
-  function wireDragAndDropOutputs() {
-    const container = $("ssOutput");
-    const cards = Array.from(container.querySelectorAll(".bubble[draggable='true']"));
-    if (cards.length === 0) return;
-
-    let dragId = null;
-
-    cards.forEach(card => {
-      card.addEventListener("dragstart", (e) => {
-        dragId = card.getAttribute("data-out-id");
-        card.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-      });
-
-      card.addEventListener("dragend", () => {
-        dragId = null;
-        card.classList.remove("dragging");
-      });
-
-      card.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-      });
-
-      card.addEventListener("drop", (e) => {
-        e.preventDefault();
-        const targetId = card.getAttribute("data-out-id");
-        if (!dragId || !targetId || dragId === targetId) return;
-
-        state.outputOrder = Array.isArray(state.outputOrder) ? state.outputOrder : [];
-        const from = state.outputOrder.indexOf(dragId);
-        const to = state.outputOrder.indexOf(targetId);
-        if (from < 0 || to < 0) return;
-
-        const [moved] = state.outputOrder.splice(from, 1);
-        state.outputOrder.splice(to, 0, moved);
-
-        saveState();
-        renderOutputs();
-        setStatus("ssStatus", "Reordered outputs.", "ok");
-      });
-    });
-  }
-
-  // ---------- RSS (unchanged from your working build) ----------
+  // ---------- RSS ----------
   function renderRssFeeds() {
     const container = $("rssFeeds");
     container.innerHTML = "";
@@ -849,22 +675,14 @@
   }
 
   async function fetchRss(url) {
-    if (!url) {
-      setStatus("rssStatus", "Select a feed first.", "warn");
-      return;
-    }
-
+    if (!url) { setStatus("rssStatus", "Select a feed first.", "warn"); return; }
     setStatus("rssStatus", "Fetching feed...", "info");
     try {
       const resp = await fetch(`/api/rss/fetch?url=${encodeURIComponent(url)}&limit=30`);
-      if (!resp.ok) {
-        const txt = await resp.text();
-        throw new Error(`RSS failed (${resp.status}): ${txt}`);
-      }
+      if (!resp.ok) throw new Error(`RSS failed (${resp.status})`);
       const data = await resp.json();
-      const items = data.items || [];
-      renderRssItems(items, data.feedTitle || "");
-      setStatus("rssStatus", `Loaded ${items.length} item(s).`, "ok");
+      renderRssItems(data.items || [], data.feedTitle || "");
+      setStatus("rssStatus", `Loaded ${(data.items || []).length} item(s).`, "ok");
     } catch (e) {
       console.error(e);
       setStatus("rssStatus", `RSS error: ${e.message}`, "err");
@@ -888,7 +706,13 @@
     renderRssItems([], "");
   }
 
-  // ---------- Wiring ----------
+  function renderRss() {
+    renderRssFeeds();
+    setStatus("rssStatus", "Ready.", "info");
+    $("rssActiveTitle").textContent = rssState.activeFeedUrl ? `Feed: ${rssState.activeFeedUrl}` : "No feed selected.";
+    renderRssItems(rssState.lastItems || [], "");
+  }
+
   function hydrateUI() {
     $("ssIssue").value = state.issue || "";
     $("ssTone").value = state.tone || "firm";
@@ -904,38 +728,25 @@
     $("ssTitleOutput").value = state.titleOutput || "";
 
     renderBlocks();
-    renderOutputs();
-
-    // RSS
-    renderRssFeeds();
-    setStatus("rssStatus", "Ready.", "info");
-    $("rssActiveTitle").textContent = rssState.activeFeedUrl ? `Feed: ${rssState.activeFeedUrl}` : "No feed selected.";
-    renderRssItems(rssState.lastItems || [], "");
+    renderRss();
   }
 
   function wireEvents() {
-    // Substack
-    $("ssIssue").addEventListener("input", () => { readTopFields(); });
-    $("ssTone").addEventListener("change", () => { readTopFields(); });
-    $("ssLength").addEventListener("change", () => { readTopFields(); });
-
-    $("ssBody").addEventListener("input", () => { readTopFields(); });
-    $("ssBodySection").addEventListener("change", () => { readTopFields(); });
-    $("ssBodyLinks").addEventListener("input", () => { readTopFields(); });
-    $("ssBodyIncludeLinks").addEventListener("change", () => { readTopFields(); });
+    $("ssIssue").addEventListener("input", readTopFields);
+    $("ssTone").addEventListener("change", readTopFields);
+    $("ssLength").addEventListener("change", readTopFields);
+    $("ssBody").addEventListener("input", readTopFields);
+    $("ssBodySection").addEventListener("change", readTopFields);
+    $("ssBodyLinks").addEventListener("input", readTopFields);
+    $("ssBodyIncludeLinks").addEventListener("change", readTopFields);
 
     $("ssAddBlock").addEventListener("click", () => addBlock());
     $("ssGenerate").addEventListener("click", generateSections);
     $("ssGenTitle").addEventListener("click", generateTitleOptions);
-    $("ssCopyAll").addEventListener("click", copyAll);
-    $("ssClearOutputs").addEventListener("click", clearAllOutputs);
+    $("ssCopyAll").addEventListener("click", copyAllGenerated);
 
     $("ssCopyTitle").addEventListener("click", async () => {
       const text = $("ssTitleOutput").value || "";
-      if (!text.trim()) {
-        setStatus("ssStatus", "No title options to copy.", "warn");
-        return;
-      }
       const ok = await copyToClipboard(text);
       setStatus("ssStatus", ok ? "Copied title options." : "Copy failed.", ok ? "ok" : "err");
     });
@@ -945,8 +756,7 @@
       saveState();
     });
 
-    // Blocks delegation
-    $("ssBlocks").addEventListener("click", (e) => {
+    $("ssBlocks").addEventListener("click", async (e) => {
       const btn = e.target.closest("button");
       if (!btn) return;
       const action = btn.getAttribute("data-action");
@@ -956,6 +766,13 @@
       if (action === "block-del") deleteBlock(id);
       if (action === "block-up") moveBlock(id, -1);
       if (action === "block-down") moveBlock(id, 1);
+
+      if (action === "block-copy") {
+        const b = state.blocks.find(x => x.id === id);
+        const text = (b?.notes || "").trim();
+        const ok = await copyToClipboard(text);
+        setStatus("ssStatus", ok ? "Copied generated block." : "Copy failed.", ok ? "ok" : "err");
+      }
     });
 
     $("ssBlocks").addEventListener("change", (e) => {
@@ -979,55 +796,15 @@
       if (action === "block-notes") updateBlock(id, { notes: el.value });
     });
 
-    // Outputs delegation
-    $("ssOutput").addEventListener("click", async (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      const action = btn.getAttribute("data-action");
-      const id = btn.getAttribute("data-id");
-      if (!action || !id) return;
-
-      if (action === "out-up") moveOutput(id, -1);
-      if (action === "out-down") moveOutput(id, 1);
-
-      if (action === "copy-out") {
-        const text = (state.outputs[id] || "").trim();
-        if (!text) {
-          setStatus("ssStatus", "Output is empty.", "warn");
-          return;
-        }
-        const ok = await copyToClipboard(text);
-        setStatus("ssStatus", ok ? `Copied: ${sectionName(id)}` : "Copy failed.", ok ? "ok" : "err");
-      }
-
-      if (action === "clear-out") {
-        clearOneOutput(id);
-      }
-    });
-
-    $("ssOutput").addEventListener("input", (e) => {
-      const el = e.target;
-      const action = el.getAttribute("data-action");
-      if (action !== "edit-output") return;
-      const id = el.getAttribute("data-id");
-      state.outputs[id] = el.value || "";
-      // if user empties it manually, remove the bubble
-      ensureOutputBubble(id, false);
-      renderOutputs();
-    });
-
     // RSS
     $("rssAdd").addEventListener("click", () => {
-      const u = $("rssUrl").value || "";
-      addRssFeed(u);
+      addRssFeed($("rssUrl").value || "");
       $("rssUrl").value = "";
       setStatus("rssStatus", "Feed added.", "ok");
       if (rssState.activeFeedUrl) fetchRss(rssState.activeFeedUrl);
     });
 
-    $("rssRefresh").addEventListener("click", () => {
-      fetchRss(rssState.activeFeedUrl);
-    });
+    $("rssRefresh").addEventListener("click", () => fetchRss(rssState.activeFeedUrl));
 
     $("rssFeeds").addEventListener("click", (e) => {
       const btn = e.target.closest("button");
@@ -1044,7 +821,6 @@
       }
       if (action === "rss-del") {
         removeRssFeed(url);
-        renderRssFeeds();
         setStatus("rssStatus", "Feed removed.", "ok");
       }
     });
@@ -1052,27 +828,22 @@
     $("rssItems").addEventListener("click", (e) => {
       const btn = e.target.closest("button");
       if (!btn) return;
-      const action = btn.getAttribute("data-action");
-      if (action !== "rss-add-to-gen") return;
-
-      const title = btn.getAttribute("data-title") || "";
-      const link = btn.getAttribute("data-link") || "";
-      const summary = btn.getAttribute("data-summary") || "";
+      if (btn.getAttribute("data-action") !== "rss-add-to-gen") return;
 
       addBlock({
         sectionId: "democracy_watch",
-        label: title,
-        links: link ? link : "",
+        label: btn.getAttribute("data-title") || "",
+        links: btn.getAttribute("data-link") || "",
         includeLinks: false,
-        notes: summary ? summary : `Story: ${title}`
+        notes: btn.getAttribute("data-summary") || "",
+        isGenerated: false
       });
 
       document.querySelector(".tab[data-tab='substack']")?.click();
-      setStatus("ssStatus", "RSS story added as a block (research-only link by default).", "ok");
+      setStatus("ssStatus", "RSS story added as an input block.", "ok");
     });
   }
 
-  // ---------- Boot ----------
   document.addEventListener("DOMContentLoaded", () => {
     initTabs();
     renderBodySectionDropdown();
@@ -1086,8 +857,6 @@
       setStatus("ssStatus", "Loaded from localStorage.", "ok");
     }
 
-    if (rssState.activeFeedUrl) {
-      fetchRss(rssState.activeFeedUrl);
-    }
+    if (rssState.activeFeedUrl) fetchRss(rssState.activeFeedUrl);
   });
 })();
